@@ -10,21 +10,11 @@ mod common;
 
 #[tokio::test]
 async fn test_create_user() {
-    common::setup();
-    let test_config = linkje_api::config::create().unwrap();
-    let test_db = linkje_api::create_mongo_connection(&test_config)
-        .await
-        .unwrap();
-    test_db
-        .collection::<User>("users")
-        .drop(None)
-        .await
-        .unwrap();
-
-    let route = user_routes(test_db);
+    let test_fixtures = common::setup().await;
+    let route = user_routes(test_fixtures.db);
 
     let user = User {
-        user_id: 13,
+        user_id: None,
         email_address: SafeEmail().fake::<String>(),
         first_name: FirstName().fake(),
         last_name: LastName().fake(),

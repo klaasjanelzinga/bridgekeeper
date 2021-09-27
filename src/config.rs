@@ -14,6 +14,7 @@ impl Display for Config {
         f.debug_struct("Config")
             .field("mongo_db", &self.mongo_db)
             .field("environment", &self.environment)
+            .field("mongo_url", &self.masked_mongo_url)
             .finish()
     }
 }
@@ -45,11 +46,6 @@ pub fn create() -> Result<Config, OsString> {
         mongo_db,
     };
 
-    log::trace!(
-        "Created config {}, mongo host {}:{}",
-        config,
-        mongo_host,
-        mongo_port
-    );
+    log::trace!("Created config {}", config);
     Ok(config)
 }

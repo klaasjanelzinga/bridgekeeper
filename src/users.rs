@@ -1,9 +1,10 @@
-use std::fmt::{Display, Formatter};
 use mongodb::Database;
 use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 use uuid::Uuid;
+use std::fmt::{Display, Formatter};
+use crate::errors::ErrorKind;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct User {
@@ -37,11 +38,16 @@ pub async fn create(user: &User, db: Database) -> Result<User, Box<dyn Error>>{
     Ok(new_user)
 }
 
-pub async fn get(email_address: String, db: Database) -> Result<User, Box<dyn Error>> {
+pub async fn get_by_email_address(email_address: String, db: Database) -> Result<User, ErrorKind> {
     log::trace!("Get a user with email_address {}", email_address);
     let collection = db.collection::<User>("users");
     let find_filter = doc! { "email_address": &email_address };
-    let find_result = collection.find_one(find_filter, None).await?.expect("User not found");
-
-    Ok(find_result)
+    let find_result = collection.find_one(find_filter, None).await;
+    match find_result {
+        Err(error) => Err(ErrorKind::MongoDbError { mongodb_error: error }),
+        Ok(optional_user) => match optional_user {
+            Some(user) => return Ok(user),
+            None => Err(ErrorKind::EntityNotFound { message: String::from("User with email address not found") })
+        }
+    }
 }

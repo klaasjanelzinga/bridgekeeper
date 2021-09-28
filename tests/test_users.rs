@@ -42,4 +42,14 @@ async fn test_create_user() {
     assert_eq!(user.email_address, response_user.email_address);
     assert_eq!(user.first_name, response_user.first_name);
     assert_eq!(user.last_name, response_user.last_name);
+
+    let response_get_unknown_email_address = warp::test::request()
+        .method("GET")
+        .path(format!("/user/unknown-{}", user.email_address).as_str())
+        .reply(&route)
+        .await;
+
+    assert_eq!(response_get_unknown_email_address.status(), StatusCode::NOT_FOUND);
+
+    ()
 }

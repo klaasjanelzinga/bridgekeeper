@@ -1,5 +1,6 @@
 pub mod config;
 pub mod users;
+pub mod errors;
 
 use config::Config;
 use mongodb::options::ClientOptions;
@@ -35,12 +36,21 @@ pub mod handlers {
 
     use mongodb::Database;
     use warp::http::StatusCode;
+    use warp::Rejection;
 
-    pub async fn get(email_address: String, db: Database) -> Result<impl warp::Reply, Infallible> {
-        log::trace!("Get a user with email_address {}", email_address);
-        let user = crate::users::get(email_address, db).await;
-        // TODO err handling
-        Ok(warp::reply::json(&user.unwrap()))
+    pub async fn get(email_address: String, db: Database) -> Result<impl warp::Reply, Rejection> {
+        log::trace!("Finding a user with email_address {}", email_address);
+        let get_user_response = crate::users::get_by_email_address(email_address, db).await;
+        match get_user_response {
+            Ok(user) => {
+                log::trace!("user found");
+                Ok(warp::reply::json(&user))
+            },
+            Err(error) => {
+                log::trace!("finding the user gave an error {}", error.to_string());
+                Err(warp::reject::not_found())
+            }
+        }
     }
 
     pub async fn create(db: Database, mut user: crate::users::User) -> Result<impl warp::Reply, Infallible> {
@@ -49,7 +59,7 @@ pub mod handlers {
         // TODO error handling
         let user = result.unwrap();
         log::trace!("Inserted {}", user);
-        Ok(warp::reply::json(&user))
+        Ok(warp::reply::with_status(warp::reply::json(&user), StatusCode::CREATED))
     }
 }
 

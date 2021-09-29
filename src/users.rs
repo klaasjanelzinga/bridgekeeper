@@ -47,20 +47,16 @@ pub async fn create(user: &User, db: Database) -> Result<User, Box<dyn Error>> {
 /// Optional user with the given email address or an Error.
 /// - EntityNotFound - No user exists for the email address.
 /// - MongoDbError - Something is off with mongo.
-pub async fn get_by_email_address(email_address: String, db: Database) -> Result<User, ErrorKind> {
+pub async fn get_by_email_address(email_address: &String, db: Database) -> Result<User, ErrorKind> {
     log::trace!("Get a user with email_address {}", email_address);
     let collection = db.collection::<User>("users");
     let find_filter = doc! { "email_address": &email_address };
-    let find_result = collection.find_one(find_filter, None).await;
-    match find_result {
-        Err(error) => Err(ErrorKind::MongoDbError {
-            mongodb_error: error,
+    let optional_user = collection.find_one(find_filter, None).await?;
+
+    match optional_user {
+        Some(user) => return Ok(user),
+        None => Err(ErrorKind::EntityNotFound {
+            message: format!("User with email address {} not found", email_address),
         }),
-        Ok(optional_user) => match optional_user {
-            Some(user) => return Ok(user),
-            None => Err(ErrorKind::EntityNotFound {
-                message: format!("User with email address {} not found", email_address),
-            }),
-        },
     }
 }

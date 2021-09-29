@@ -39,17 +39,17 @@ pub mod handlers {
 
     impl warp::reject::Reject for crate::errors::ErrorKind {}
 
-    pub async fn get(email_address: String, db: Database) -> Result<impl warp::Reply, Rejection> {
-        log::trace!("Finding a user with email_address {}", email_address);
-        let get_user_response = crate::users::get_by_email_address(email_address, db).await;
+    pub async fn get_by_email_address(email_address: String, db: Database) -> Result<impl warp::Reply, Rejection> {
+        log::trace!("get_by_email_address({}, _)", &email_address);
+        let get_user_response = crate::users::get_by_email_address(&email_address, db).await;
         match get_user_response {
             Ok(user) => Ok(warp::reply::json(&user)),
-            Err(error) => match error {
-                crate::errors::ErrorKind::EntityNotFound { message } => {
-                    log::trace!("Entity not found {}", message);
-                    Err(warp::reject::not_found())
+            Err(error) => {
+                log::info!("get_by_email_address({}, _) failed: {}", &email_address, error);
+                match error {
+                    crate::errors::ErrorKind::EntityNotFound { message : _} => Err(warp::reject::not_found()),
+                    _ => Err(warp::reject::custom(error)),
                 }
-                _ => Err(warp::reject::custom(error)),
             },
         }
     }
@@ -108,7 +108,7 @@ pub fn user_routes(
         .or(warp::path!("user" / String)
             .and(warp::get())
             .and(with_db(db.clone()))
-            .and_then(handlers::get))
+            .and_then(handlers::get_by_email_address))
 
     // post_user_route(db.clone()).or(get_user_route(db.clone()))
 }

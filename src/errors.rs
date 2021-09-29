@@ -1,9 +1,21 @@
-use strum_macros::Display;
+use std::fmt::{Debug, Formatter};
 
-#[derive(Display, Debug)]
 pub enum ErrorKind {
+    EntityNotFound {
+        message: String,
+    },
+    MongoDbError {
+        mongodb_error: mongodb::error::Error,
+    },
+}
 
-    EntityNotFound { message: String },
-
-    MongoDbError { mongodb_error: mongodb::error::Error },
+impl Debug for ErrorKind {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match &*self {
+            ErrorKind::EntityNotFound { message } => write!(f, "EntityNotFound: {}", message),
+            ErrorKind::MongoDbError { mongodb_error } => {
+                write!(f, "MongoDbError: {}", mongodb_error)
+            }
+        }
+    }
 }

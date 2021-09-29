@@ -1,10 +1,10 @@
-use mongodb::Database;
+use crate::errors::ErrorKind;
 use mongodb::bson::doc;
+use mongodb::Database;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
-use uuid::Uuid;
 use std::fmt::{Display, Formatter};
-use crate::errors::ErrorKind;
+use uuid::Uuid;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct User {
@@ -26,7 +26,7 @@ impl Display for User {
     }
 }
 
-pub async fn create(user: &User, db: Database) -> Result<User, Box<dyn Error>>{
+pub async fn create(user: &User, db: Database) -> Result<User, Box<dyn Error>> {
     log::trace!("Creating user, {}", user);
     let mut new_user = user.clone();
     new_user.user_id = Some(Uuid::new_v4().to_hyphenated().to_string());
@@ -38,16 +38,29 @@ pub async fn create(user: &User, db: Database) -> Result<User, Box<dyn Error>>{
     Ok(new_user)
 }
 
+/// Finds the user for the given email address.
+///
+/// ## Args:
+/// - email_address: The email address of the user.
+///
+/// ## Returns:
+/// Optional user with the given email address or an Error.
+/// - EntityNotFound - No user exists for the email address.
+/// - MongoDbError - Something is off with mongo.
 pub async fn get_by_email_address(email_address: String, db: Database) -> Result<User, ErrorKind> {
     log::trace!("Get a user with email_address {}", email_address);
     let collection = db.collection::<User>("users");
     let find_filter = doc! { "email_address": &email_address };
     let find_result = collection.find_one(find_filter, None).await;
     match find_result {
-        Err(error) => Err(ErrorKind::MongoDbError { mongodb_error: error }),
+        Err(error) => Err(ErrorKind::MongoDbError {
+            mongodb_error: error,
+        }),
         Ok(optional_user) => match optional_user {
             Some(user) => return Ok(user),
-            None => Err(ErrorKind::EntityNotFound { message: String::from("User with email address not found") })
-        }
+            None => Err(ErrorKind::EntityNotFound {
+                message: format!("User with email address {} not found", email_address),
+            }),
+        },
     }
 }

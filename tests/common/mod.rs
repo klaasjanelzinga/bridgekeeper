@@ -1,8 +1,8 @@
-use log::LevelFilter;
-use std::env;
-use mongodb::Database;
 use linkje_api::config::Config;
 use linkje_api::users::User;
+use log::LevelFilter;
+use mongodb::Database;
+use std::env;
 
 pub struct TestFixtures {
     pub db: Database,
@@ -29,20 +29,10 @@ pub async fn setup() -> TestFixtures {
     env::set_var("MONGO_DB", "linkje-test");
 
     let config = linkje_api::config::create().unwrap();
-    let db =     linkje_api::create_mongo_connection(&config)
-        .await
-        .unwrap();
+    let db = linkje_api::create_mongo_connection(&config).await.unwrap();
     log::info!("Emptying the Users collection");
-    db
-        .collection::<User>("users")
-        .drop(None)
-        .await
-        .unwrap();
-
+    db.collection::<User>("users").drop(None).await.unwrap();
 
     log::trace!("Test setup done!");
-    TestFixtures{
-        config, db
-    }
+    TestFixtures { config, db }
 }
-

@@ -49,7 +49,10 @@ async fn test_create_user() {
         .reply(&route)
         .await;
 
-    assert_eq!(response_get_unknown_email_address.status(), StatusCode::NOT_FOUND);
+    assert_eq!(
+        response_get_unknown_email_address.status(),
+        StatusCode::NOT_FOUND
+    );
 
     ()
 }

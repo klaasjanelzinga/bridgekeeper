@@ -1,4 +1,4 @@
-use std::fmt::{Debug, Formatter, Display};
+use std::fmt::{Debug, Display, Formatter};
 
 #[derive(Debug)]
 pub enum ErrorKind {
@@ -17,7 +17,7 @@ impl Display for ErrorKind {
         match &*self {
             ErrorKind::EntityNotFound { message } => write!(f, "EntityNotFound: {}", message),
             ErrorKind::MongoDbError { mongodb_error } => {
-                write!(f, "M o n g oDbError: {}", mongodb_error)
+                write!(f, "MongoDbError: {}", mongodb_error)
             }
         }
     }
@@ -25,6 +25,8 @@ impl Display for ErrorKind {
 
 impl From<mongodb::error::Error> for ErrorKind {
     fn from(mongo_error: mongodb::error::Error) -> Self {
-        ErrorKind::MongoDbError { mongodb_error: mongo_error}
+        ErrorKind::MongoDbError {
+            mongodb_error: mongo_error,
+        }
     }
 }

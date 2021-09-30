@@ -2,7 +2,6 @@ use crate::errors::ErrorKind;
 use mongodb::bson::doc;
 use mongodb::Database;
 use serde::{Deserialize, Serialize};
-use std::error::Error;
 use std::fmt::{Display, Formatter};
 use uuid::Uuid;
 
@@ -26,15 +25,27 @@ impl Display for User {
     }
 }
 
-pub async fn create(user: &User, db: Database) -> Result<User, Box<dyn Error>> {
-    log::trace!("Creating user, {}", user);
+/// Create a new user.
+///
+/// ## Args:
+/// - user: The user to create
+/// - db: The mongo database instance.
+///
+/// ## Returns:
+/// The created user or an error:
+/// - MongoDbError - Something is off with mongo.
+pub async fn create(user: &User, db: Database) -> Result<User, ErrorKind> {
+    trace!("Creating user, {}", user);
     let mut new_user = user.clone();
     new_user.user_id = Some(Uuid::new_v4().to_hyphenated().to_string());
 
     let collection = db.collection::<User>("users");
     let insert_result = collection.insert_one(&new_user, None).await?;
 
-    log::trace!("Inserted {}", insert_result.inserted_id);
+    trace!(
+        "New user inserted with mongo id {}",
+        insert_result.inserted_id
+    );
     Ok(new_user)
 }
 
@@ -42,13 +53,14 @@ pub async fn create(user: &User, db: Database) -> Result<User, Box<dyn Error>> {
 ///
 /// ## Args:
 /// - email_address: The email address of the user.
+/// - db: The mongo database instance.
 ///
 /// ## Returns:
 /// Optional user with the given email address or an Error.
 /// - EntityNotFound - No user exists for the email address.
 /// - MongoDbError - Something is off with mongo.
 pub async fn get_by_email_address(email_address: &String, db: Database) -> Result<User, ErrorKind> {
-    log::trace!("Get a user with email_address {}", email_address);
+    trace!("Get a user with email_address {}", email_address);
     let collection = db.collection::<User>("users");
     let find_filter = doc! { "email_address": &email_address };
     let optional_user = collection.find_one(find_filter, None).await?;

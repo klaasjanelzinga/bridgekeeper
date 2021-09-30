@@ -46,6 +46,6 @@ pub fn create() -> Result<Config, OsString> {
         mongo_db,
     };
 
-    log::trace!("Created config {}", config);
+    trace!("Created config {}", config);
     Ok(config)
 }

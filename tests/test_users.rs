@@ -6,6 +6,9 @@ use warp::http::StatusCode;
 use linkje_api::user_routes;
 use linkje_api::users::User;
 
+#[macro_use]
+extern crate log;
+
 mod common;
 
 #[tokio::test]
@@ -27,7 +30,16 @@ async fn test_create_user() {
         .reply(&route)
         .await;
     assert_eq!(create_response.status(), StatusCode::CREATED);
-    log::trace!("User {} created", user);
+    let str_create_response = String::from_utf8(create_response.body().to_vec()).unwrap();
+    let create_response_user: User = serde_json::from_str(&str_create_response).unwrap();
+
+    trace!("User {} created as {} create_response_user", user, create_response_user);
+
+    assert_eq!(user.email_address, create_response_user.email_address);
+    assert_eq!(user.first_name, create_response_user.first_name);
+    assert_eq!(user.last_name, create_response_user.last_name);
+    assert!(create_response_user.user_id.is_some());
+
 
     let response_get = warp::test::request()
         .method("GET")

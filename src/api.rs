@@ -9,6 +9,7 @@ use std::error::Error;
 use users::User;
 use warp::{Reply, Rejection, Filter, path, post, get};
 use std::convert::Infallible;
+use warp::filters::BoxedFilter;
 
 #[macro_use]
 extern crate log;
@@ -131,16 +132,32 @@ pub fn linkje_routes(
 
 pub fn user_routes(
     db: &Database,
-) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
-    path!("user")
-        .and(post())
-        .and(with_db(db.clone()))
-        .and(json_body())
-        .and_then(handlers::create_or_update_user)
-        .or(path!("user" / String)
+) -> BoxedFilter<(impl Reply,)> {
+
+    let get_user =
+        path!("user" / String)
             .and(get())
             .and(with_db(db.clone()))
-            .and_then(handlers::get_user))
+            .and_then(handlers::get_user)
+            ;
+    let post_user =
+        path!("user" )
+            .and(post())
+            .and(with_db(db.clone()))
+            .and(json_body())
+            .and_then(handlers::create_or_update_user)
+            ;
+    get_user.or(post_user).boxed()
+
+    // path!("user")
+    //     .and(post())
+    //     .and(with_db(db.clone()))
+    //     .and(json_body())
+    //     .and_then(handlers::create_or_update_user)
+    //     .or(path!("user" / String)
+    //         .and(get())
+    //         .and(with_db(db.clone()))
+    //         .and_then(handlers::get_user))
 }
 
 pub async fn create_mongo_connection(config: &Config) -> Result<Database, Box<dyn Error>> {

@@ -1,11 +1,52 @@
-use warp::http::{StatusCode};
+use warp::http::StatusCode;
 
 use linkje_api::user_routes;
+use linkje_api::users::User;
+use warp::filters::BoxedFilter;
+use warp::Reply;
 
 #[macro_use]
 extern crate log;
 
 mod common;
+
+// Create the user.
+async fn create_user(route: &BoxedFilter<(impl Reply + 'static, )>, user: &User) -> User {
+    let create_response = warp::test::request()
+        .method("POST")
+        .path("/user")
+        .json(&user)
+        .reply(route)
+        .await;
+    assert_eq!(create_response.status(), StatusCode::CREATED);
+
+    common::deserialize_user(&create_response)
+}
+
+// Update  the user.
+async fn update_user(route: &BoxedFilter<(impl Reply + 'static, )>, user: &User) -> User {
+    let update_response = warp::test::request()
+        .method("POST")
+        .path("/user")
+        .json(&user)
+        .reply(route)
+        .await;
+    assert_eq!(update_response.status(), StatusCode::OK);
+
+    common::deserialize_user(&update_response)
+}
+
+// Get user by the user_id.
+async fn get_user(route: &BoxedFilter<(impl Reply + 'static, )>, user_id: &String) -> User {
+    let response_get = warp::test::request()
+        .method("GET")
+        .path(format!("/user/{}", user_id).as_str())
+        .reply(route)
+        .await;
+    assert_eq!(response_get.status(), StatusCode::OK);
+
+    common::deserialize_user(&response_get)
+}
 
 #[tokio::test]
 async fn test_create_user() {
@@ -14,17 +55,8 @@ async fn test_create_user() {
     let user = common::user();
     common::empty_users_collection(&test_fixtures.db).await;
 
-    // -- create user
-    let create_response = warp::test::request()
-        .method("POST")
-        .path("/user")
-        .json(&user)
-        .reply(&route)
-        .await;
-    assert_eq!(create_response.status(), StatusCode::CREATED);
+    let mut response_user = create_user(&route, &user).await;
 
-    // -- Validate response of create
-    let mut response_user = common::deserialize_user(&create_response);
     assert_eq!(user.email_address, response_user.email_address);
     assert_eq!(user.first_name, response_user.first_name);
     assert_eq!(user.last_name, response_user.last_name);
@@ -32,17 +64,8 @@ async fn test_create_user() {
 
     let created_user_id = response_user.user_id.unwrap();
 
-    // Get the user by the user_id
-    let response_get = warp::test::request()
-        .method("GET")
-        .path(format!("/user/{}", created_user_id).as_str())
-        .reply(&route)
-        .await;
-    assert_eq!(response_get.status(), StatusCode::OK);
-
     // -- Validate the retrieved user.
-    response_user = common::deserialize_user(&response_get);
-
+    response_user = get_user(&route, &created_user_id).await;
     assert_eq!(user.email_address, response_user.email_address);
     assert_eq!(user.first_name, response_user.first_name);
     assert_eq!(user.last_name, response_user.last_name);
@@ -70,52 +93,27 @@ async fn test_update_user() {
     let user = common::user();
     common::empty_users_collection(&test_fixtures.db).await;
 
-    // --- create user
-    let create_response = warp::test::request()
-        .method("POST")
-        .path("/user")
-        .json(&user)
-        .reply(&route)
-        .await;
-    assert_eq!(create_response.status(), StatusCode::CREATED);
-
-    let response_user = common::deserialize_user(&create_response);
+    // -- create a user
+    let response_user = create_user(&route, &user).await;
     let created_user_id = response_user.user_id.unwrap();
 
-    // --- get user
-    let response_get = warp::test::request()
-        .method("GET")
-        .path(format!("/user/{}", created_user_id).as_str())
-        .reply(&route)
-        .await;
-    assert_eq!(response_get.status(), StatusCode::OK);
-    let mut user_to_update = common::deserialize_user(&response_get);
+    // -- get the created a user
+    let mut user_to_update = get_user(&route, &created_user_id).await;
     user_to_update.first_name = format!("updated-{}", user_to_update.first_name);
     user_to_update.last_name = format!("updated-{}", user_to_update.last_name);
     user_to_update.email_address = format!("updated-{}", user_to_update.email_address);
 
-    // --- update user
-    let update_response = warp::test::request()
-        .method("POST")
-        .path("/user")
-        .json(&user_to_update)
-        .reply(&route)
-        .await;
-    assert_eq!(update_response.status(), StatusCode::OK);
-
-    // --- get updated user
-    let get_update_user_response = warp::test::request()
-        .method("GET")
-        .path(format!("/user/{}", created_user_id).as_str())
-        .reply(&route)
-        .await;
-    assert_eq!(get_update_user_response.status(), StatusCode::OK);
-
-    // -- Validate update user.
-    let updated_user = common::deserialize_user(&get_update_user_response);
+    // -- Validate update user response.
+    let updated_user = update_user(&route, &user_to_update).await;
     assert_eq!(updated_user.first_name, format!("updated-{}", user.first_name));
     assert_eq!(updated_user.last_name, format!("updated-{}", user.last_name));
     assert_eq!(updated_user.email_address, format!("updated-{}", user.email_address));
+
+    // -- Validate update with a get.
+    let updated_user_with_get = get_user(&route, &created_user_id).await;
+    assert_eq!(updated_user_with_get.first_name, format!("updated-{}", user.first_name));
+    assert_eq!(updated_user_with_get.last_name, format!("updated-{}", user.last_name));
+    assert_eq!(updated_user_with_get.email_address, format!("updated-{}", user.email_address));
 
     // -- Update a user that was not yet created.
     let mut new_user = common::user();
@@ -128,7 +126,6 @@ async fn test_update_user() {
         .reply(&route)
         .await;
     assert_eq!(update_response.status(), StatusCode::NOT_FOUND);
-
 
     ()
 }

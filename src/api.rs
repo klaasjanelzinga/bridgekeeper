@@ -44,41 +44,59 @@ pub mod handlers {
 
     impl warp::reject::Reject for crate::errors::ErrorKind {}
 
-    pub async fn get_by_email_address(
-        email_address: String,
+    pub async fn get_user(
+        user_id: String,
         db: Database,
     ) -> Result<impl Reply, Rejection> {
-        trace!("get_by_email_address({}, _)", &email_address);
-        let get_user_response = crate::users::get_by_email_address(&email_address, db).await;
+        trace!("get_user({}, _)", &user_id);
+        let get_user_response = crate::users::get(&user_id, &db).await;
         match get_user_response {
             Ok(user) => Ok(json(&user)),
             Err(error) => {
                 info!(
-                    "get_by_email_address({}, _) failed: {}",
-                    &email_address,
+                    "get({}, _) failed: {}",
+                    &user_id,
                     error
                 );
                 match error {
-                    EntityNotFound { message: _ } => {
-                        Err(not_found())
-                    }
+                    EntityNotFound { message: _ } => Err(not_found()),
                     _ => Err(custom(error)),
                 }
             }
         }
     }
 
-    pub async fn create(db: Database, user: crate::users::User) -> Result<impl Reply, Rejection> {
-        trace!("create({}, _)", user);
-        let create_response = crate::users::create(&user, db).await;
-        match create_response {
-            Ok(created_user) => Ok(with_status(
-                json(&created_user),
-                StatusCode::CREATED,
-            )),
-            Err(error) => {
-                info!("Error creating user {}", error);
-                Err(custom(error))
+    pub async fn create_or_update_user(db: Database, user: crate::users::User) -> Result<impl Reply, Rejection> {
+        trace!("create_or_update({}, _)", user);
+        match user.user_id {
+            Some(_) => {
+                let update_response = crate::users::update(&user, &db).await;
+                match update_response {
+                    Ok(updated_user) => Ok(with_status(
+                        json(&updated_user),
+                        StatusCode::OK,
+                    )),
+                    Err(error) => {
+                        info!("Error updating user {}", error);
+                        match error {
+                            EntityNotFound { message: _ } => Err(not_found()),
+                            _ => Err(custom(error)),
+                        }
+                    }
+                }
+            },
+            None => {
+                let create_response = crate::users::create(&user, &db).await;
+                match create_response {
+                    Ok(created_user) => Ok(with_status(
+                        json(&created_user),
+                        StatusCode::CREATED,
+                    )),
+                    Err(error) => {
+                        info!("Error creating user {}", error);
+                        Err(custom(error))
+                    }
+                }
             }
         }
     }
@@ -99,7 +117,7 @@ pub fn with_db(
 pub fn all_routes(
     db: Database,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
-    user_routes(db.clone()).or(linkje_routes(db.clone()))
+    user_routes(&db.clone()).or(linkje_routes(db.clone()))
 }
 
 pub fn linkje_routes(
@@ -112,17 +130,17 @@ pub fn linkje_routes(
 }
 
 pub fn user_routes(
-    db: Database,
+    db: &Database,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     path!("user")
         .and(post())
         .and(with_db(db.clone()))
         .and(json_body())
-        .and_then(handlers::create)
+        .and_then(handlers::create_or_update_user)
         .or(path!("user" / String)
             .and(get())
             .and(with_db(db.clone()))
-            .and_then(handlers::get_by_email_address))
+            .and_then(handlers::get_user))
 }
 
 pub async fn create_mongo_connection(config: &Config) -> Result<Database, Box<dyn Error>> {

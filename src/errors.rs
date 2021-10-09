@@ -5,6 +5,9 @@ pub enum ErrorKind {
     EntityNotFound {
         message: String,
     },
+    IllegalRequest {
+        message: String,
+    },
     MongoDbError {
         mongodb_error: mongodb::error::Error,
     },
@@ -16,6 +19,7 @@ impl Display for ErrorKind {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match &*self {
             ErrorKind::EntityNotFound { message } => write!(f, "EntityNotFound: {}", message),
+            ErrorKind::IllegalRequest { message } => write!(f, "IllegalRequest: {}", message),
             ErrorKind::MongoDbError { mongodb_error } => {
                 write!(f, "MongoDbError: {}", mongodb_error)
             }

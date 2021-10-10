@@ -7,7 +7,7 @@ use warp::http::Response;
 use warp::hyper::body::Bytes;
 
 use fake::faker::internet::en::SafeEmail;
-use fake::faker::name::en::{FirstName, LastName};
+use fake::faker::name::en::{FirstName, LastName, Name};
 use fake::Fake;
 use linkje_api::config::Config;
 use linkje_api::users::User;
@@ -92,7 +92,7 @@ pub fn user() -> User {
         email_address: SafeEmail().fake::<String>(),
         first_name: FirstName().fake(),
         last_name: LastName().fake(),
-        display_name: Some(String::from("sdfsdf")),
+        display_name: Name().fake(),
         password_hash: String::from("asd"),
         password_salt: String::from("asd"),
         otp_hash: None,

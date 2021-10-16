@@ -3,21 +3,21 @@ use std::fmt::Display;
 
 use log::LevelFilter;
 use mongodb::Database;
-use warp::http::Response;
-use warp::hyper::body::Bytes;
 
 use fake::faker::internet::en::SafeEmail;
 use fake::faker::name::en::{FirstName, LastName, Name};
 use fake::Fake;
 use linkje_api::config::Config;
-use linkje_api::users::User;
+use linkje_api::users::{User, CreateUserRequest};
 use std::sync::Once;
+use rocket::local::asynchronous::Client;
 use std::time::Duration;
 use tokio::time::sleep;
 
 pub struct TestFixtures {
     pub db: Database,
     pub config: Config,
+    pub client: Client,
 }
 
 static LOG_INIT: Once = Once::new();
@@ -44,8 +44,9 @@ pub async fn setup() -> TestFixtures {
 
     let config = linkje_api::config::create().unwrap();
     let db = linkje_api::create_mongo_connection(&config).await.unwrap();
+    let client = Client::tracked(linkje_api::rocket(db.clone())).await.expect("Client expected");
 
-    TestFixtures { config, db }
+    TestFixtures { config, db, client}
 }
 
 static mut EMPTY_USERS_COLLECTION_BARRIER: u32 = 1;
@@ -70,11 +71,6 @@ pub async fn empty_users_collection(db: &Database) {
     ()
 }
 
-pub fn deserialize_user(response: &Response<Bytes>) -> User {
-    let as_string = String::from_utf8(response.body().to_vec()).unwrap();
-    serde_json::from_str(&as_string).unwrap()
-}
-
 pub fn given<R, T>(given_text: &str, func: T) -> R
 where
     T: Fn() -> R,
@@ -85,20 +81,11 @@ where
     result
 }
 
-pub fn user() -> User {
-    given("User to create", || User {
-        _id: None,
-        user_id: None,
+pub fn create_user_request() -> CreateUserRequest {
+    given("UserRequest to create", || CreateUserRequest {
         email_address: SafeEmail().fake::<String>(),
         first_name: FirstName().fake(),
         last_name: LastName().fake(),
         display_name: Name().fake(),
-        password_hash: String::from("asd"),
-        password_salt: String::from("asd"),
-        otp_hash: None,
-        otp_backup_codes: vec![],
-        pending_otp_hash: None,
-        pending_backup_codes: vec![],
-        is_approved: true,
     })
 }

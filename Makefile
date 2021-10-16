@@ -3,3 +3,7 @@ dev-infra-up:
 
 dev-infra-down:
 	docker-compose --env-file etc/dev.env down
+
+test:
+	cargo test
+

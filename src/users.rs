@@ -1,6 +1,7 @@
 use crate::errors::ErrorKind;
 use crate::errors::ErrorKind::EntityNotFound;
 use argon2::Config;
+use jsonwebtoken::{encode, EncodingKey, Header};
 use mongodb::bson::doc;
 use mongodb::bson::Bson;
 use mongodb::{Collection, Database};
@@ -9,6 +10,7 @@ use rand::{thread_rng, Rng};
 use rocket::serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 use uuid::Uuid;
+use chrono::Utc;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(crate = "rocket::serde")]
@@ -16,7 +18,7 @@ pub struct User {
     #[serde(skip_serializing)]
     pub _id: Option<Bson>,
 
-    pub user_id: Option<String>,
+    pub user_id: String,
     pub email_address: String,
     pub first_name: String,
     pub last_name: String,
@@ -147,14 +149,21 @@ impl Display for ChangePasswordRequest {
     }
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct JwtClaims {
+    pub email_address: String,
+    pub user_id: String,
+    pub exp: usize,
+}
+
 /// Creates the user collection for the database.
 fn user_collection(db: &Database) -> Collection<User> {
     db.collection::<User>("users")
 }
 
 /// Creates a new abstract id for entities.
-fn create_id() -> Option<String> {
-    Some(Uuid::new_v4().to_hyphenated().to_string())
+fn create_id() -> String {
+    Uuid::new_v4().to_hyphenated().to_string()
 }
 
 /// Hash data with a random salt.
@@ -210,12 +219,49 @@ async fn get_by_email(email_address: &str, db: &Database) -> Result<User, ErrorK
     }
 }
 
-pub async fn login(login_request: &LoginRequest, db: &Database) -> Result<bool, ErrorKind> {
+pub fn create_jwt_token(user: &User) -> Result<String, ErrorKind> {
+    trace!("Creating a jwt for {}", user);
+    let expiration = Utc::now()
+        .checked_add_signed(chrono::Duration::days(20))
+        .expect("valid timestamp")
+        .timestamp();
+
+    let jwt_claims = JwtClaims {
+        email_address: user.email_address.clone(),
+        user_id: user.user_id.clone(),
+        exp: expiration as usize,
+    };
+
+    trace!("Encoding the jwt");
+    encode(
+        &Header::default(),
+        &jwt_claims,
+        &EncodingKey::from_secret("secret".as_ref()),
+    )
+    .or(Err(ErrorKind::CannotCreateJwtToken))
+}
+
+/// Log the user in and create a jwt for the session.
+///
+/// ## Args:
+/// - login_request: The login request containing the email address and the password.
+/// - db: The mongo db.
+///
+/// ## Returns:
+/// The jwt token if succeeded or:
+/// - PasswordIncorrect - if the password is incorrect.
+/// - EntityNotFound - if the email address is not known.
+pub async fn login(login_request: &LoginRequest, db: &Database) -> Result<String, ErrorKind> {
     trace!("login({}, _)", login_request);
     let user = get_by_email(&login_request.email_address, db).await?;
     trace!("Validating password of user {}", user.email_address);
     let valid_password = verify_input(&login_request.password, &user.password_hash)?;
-    Ok(valid_password)
+    if !valid_password {
+        return Err(ErrorKind::PasswordIncorrect);
+    }
+    let token = create_jwt_token(&user)?;
+    debug!("Successfully logged in user {}", user);
+    Ok(token)
 }
 
 /// Create a new user.
@@ -253,7 +299,7 @@ pub async fn create(user: &CreateUserRequest, db: &Database) -> Result<GetUserRe
         insert_result.inserted_id
     );
     Ok(GetUserResponse {
-        user_id: new_user.user_id.unwrap(),
+        user_id: new_user.user_id,
         email_address: new_user.email_address,
         first_name: new_user.first_name,
         last_name: new_user.last_name,
@@ -275,7 +321,7 @@ pub async fn get(id: &str, db: &Database) -> Result<GetUserResponse, ErrorKind> 
     trace!("get({}, ...)", id);
     let user = get_by_id(id, db).await?;
     Ok(GetUserResponse {
-        user_id: user.user_id.unwrap(),
+        user_id: user.user_id,
         email_address: user.email_address,
         first_name: user.first_name,
         last_name: user.last_name,

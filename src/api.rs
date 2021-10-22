@@ -15,7 +15,7 @@ use mongodb::Database;
 use std::error::Error;
 
 pub mod users_api {
-    use crate::users::{CreateUserRequest, GetUserResponse, UpdateUserRequest, LoginRequest, ChangePasswordRequest, LoginResponse};
+    use crate::users::{CreateUserRequest, GetUserResponse, UpdateUserRequest, LoginRequest, LoginResponse};
     use mongodb::Database;
     use rocket::http::Status;
     use rocket::response::status;
@@ -57,15 +57,15 @@ pub mod users_api {
         trace!("login_request({}, _)", login_request.email_address);
         let login_result = crate::users::login(&login_request, &db).await;
         match login_result {
-            Ok(login_ok) => {
-                if !login_ok {
-                    return Err(Status::Unauthorized)
-                }
+            Ok(login_token) => {
                 Ok( Json(LoginResponse{
-                    token: String::from("valid")
+                    token: login_token
                 }))
             },
-            Err(error_kind) => Err(Status::Unauthorized),
+            Err(error_kind) => {
+                trace!("Could not log user in {}", error_kind);
+                Err(Status::Unauthorized)
+            },
         }
     }
 

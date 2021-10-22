@@ -1,8 +1,9 @@
-use linkje_api::users::{GetUserResponse, UpdateUserRequest, CreateUserRequest, LoginRequest};
+use linkje_api::users::{GetUserResponse, UpdateUserRequest, CreateUserRequest, LoginRequest, LoginResponse, JwtClaims};
 use rocket::local::asynchronous::Client;
 use rocket::http::Status;
 use fake::faker::name::en::Name;
 use fake::Fake;
+use jsonwebtoken::{decode, DecodingKey, Validation, Algorithm};
 
 #[macro_use]
 extern crate log;
@@ -17,7 +18,7 @@ async fn create_user(client: &Client, create_user_request: &CreateUserRequest) -
     serde_json::from_str(&response.into_string().await.unwrap()).unwrap()
 }
 
-// Update  the user.
+// Update the user.
 async fn update_user(client: &Client, update_request: &UpdateUserRequest) -> GetUserResponse {
     let response = client.put("/user").json(&update_request).dispatch().await;
     assert_eq!(response.status(), Status::Ok);
@@ -28,6 +29,17 @@ async fn update_user(client: &Client, update_request: &UpdateUserRequest) -> Get
 // Get user by the user_id.
 async fn get_user(client: &Client, user_id: &String) -> GetUserResponse {
     let response = client.get(format!("/user/{}", user_id)).dispatch().await;
+    assert_eq!(response.status(), Status::Ok);
+    serde_json::from_str(&response.into_string().await.unwrap()).unwrap()
+}
+
+// Login the user.
+async fn login(client: &Client, create_user_request: &CreateUserRequest) -> LoginResponse {
+    let login_request = LoginRequest {
+        email_address: create_user_request.email_address.clone(),
+        password: create_user_request.new_password.clone(),
+    };
+    let response = client.post("/user/login").json(&login_request).dispatch().await;
     assert_eq!(response.status(), Status::Ok);
     serde_json::from_str(&response.into_string().await.unwrap()).unwrap()
 }
@@ -123,7 +135,9 @@ async fn test_update_user() {
 
 /// Test login the user:
 /// - Create the user.
-/// - Login.
+/// - Login and validate the token.
+/// - Login with an wrong-password.
+/// - Login with an invalid email address.
 #[rocket::async_test]
 async fn test_login_user() {
     let test_fixtures = common::setup().await;
@@ -132,13 +146,13 @@ async fn test_login_user() {
     let create_user_request = common::create_user_request();
     create_user(&test_fixtures.client, &create_user_request).await;
 
-    let login_request = LoginRequest {
-        email_address: create_user_request.email_address.clone(),
-        password: create_user_request.new_password.clone(),
-    };
-
-    let response = test_fixtures.client.post("/user/login").json(&login_request).dispatch().await;
-    assert_eq!(response.status(), Status::Ok);
+    let login_response = login(&test_fixtures.client, &create_user_request).await;
+    let token_message = decode::<JwtClaims>(
+        &login_response.token,
+        &DecodingKey::from_secret("secret".as_ref()),
+        &Validation::new(Algorithm::HS256)
+    );
+    assert_eq!(token_message.unwrap().claims.email_address, create_user_request.email_address);
 
     let wrong_password = test_fixtures.client.post("/user/login").json(&LoginRequest {
         email_address: create_user_request.email_address.clone(),

@@ -6,6 +6,7 @@ pub mod users;
 extern crate rocket;
 #[macro_use]
 extern crate log;
+extern crate argon2;
 
 use crate::config::Config;
 use mongodb::options::ClientOptions;
@@ -14,10 +15,10 @@ use mongodb::Database;
 use std::error::Error;
 
 pub mod users_api {
-    use crate::errors::ErrorKind::EntityNotFound;
-    use crate::users::{GetUserResponse, UpdateUserRequest, CreateUserRequest};
+    use crate::users::{CreateUserRequest, GetUserResponse, UpdateUserRequest, LoginRequest, ChangePasswordRequest, LoginResponse};
     use mongodb::Database;
     use rocket::http::Status;
+    use rocket::response::status;
     use rocket::serde::json::Json;
     use rocket::State;
 
@@ -27,54 +28,62 @@ pub mod users_api {
         db: &State<Database>,
     ) -> Result<Json<GetUserResponse>, Status> {
         trace!("get_user({}, _)", &user_id);
-        let get_user_response = crate::users::get(user_id, &db).await;
-        match get_user_response {
-            Ok(user) => Ok(Json(user)),
-            Err(error) => {
-                trace!("Error retrieving user with id {}", user_id);
-                match error {
-                    EntityNotFound { message: _ } => Err(Status::NotFound),
-                    _ => Err(Status::ServiceUnavailable),
-                }
-            }
-        }
+        let get_user_response = crate::users::get(user_id, &db).await?;
+        Ok(Json(get_user_response))
     }
 
     #[put("/user", data = "<update_request>")]
-    pub async fn update_user(update_request: Json<UpdateUserRequest>, db: &State<Database>) -> Result<Json<GetUserResponse>, Status> {
+    pub async fn update_user(
+        update_request: Json<UpdateUserRequest>,
+        db: &State<Database>,
+    ) -> Result<Json<GetUserResponse>, Status> {
         trace!("update_user(db, {}", update_request.user_id);
-        let update_response = crate::users::update(&update_request, &db).await;
-        match update_response {
-            Ok(updated_user) => Ok(Json(updated_user)),
-            Err(error) => {
-                info!("Error updating user: {}", error);
-                match error {
-                    EntityNotFound { message: _ } => Err(Status::NotFound),
-                    _ => Err(Status::ServiceUnavailable),
-                }
-            }
-        }
+        let update_response = crate::users::update(&update_request, &db).await?;
+        Ok(Json(update_response))
     }
 
     #[post("/user", data = "<create_request>")]
-    pub async fn create_user(create_request: Json<CreateUserRequest>, db: &State<Database>) -> Result<Json<GetUserResponse>, Status> {
+    pub async fn create_user(
+        create_request: Json<CreateUserRequest>,
+        db: &State<Database>,
+    ) -> Result<status::Custom<Json<GetUserResponse>>, Status> {
         trace!("create_user({}, _)", create_request.email_address);
-        let create_response = crate::users::create(&create_request, &db).await;
-        match create_response {
-            Ok(created_user) => Ok(Json(created_user)),
-            Err(_) => Err(Status::ServiceUnavailable)
+        let create_response = crate::users::create(&create_request, &db).await?;
+        Ok(status::Custom(Status::Created, Json(create_response)))
+    }
+
+    #[post("/user/login", data="<login_request>")]
+    pub async fn login(login_request: Json<LoginRequest>, db: &State<Database>,) -> Result<Json<LoginResponse>, Status> {
+        trace!("login_request({}, _)", login_request.email_address);
+        let login_result = crate::users::login(&login_request, &db).await;
+        match login_result {
+            Ok(login_ok) => {
+                if !login_ok {
+                    return Err(Status::Unauthorized)
+                }
+                Ok( Json(LoginResponse{
+                    token: String::from("valid")
+                }))
+            },
+            Err(error_kind) => Err(Status::Unauthorized),
         }
     }
+
+    // #[post("/user/<user_id>/change_password")]
+    // fn change_password(change_password_request: Json<ChangePasswordRequest>, db: &State<Database>,) -> Result<Json<LoginResult>, Status> {
+    //     trace!("change_password({}, _)", change_password_request);
+    //
+    //     Ok()
+    // }
 }
 
-use crate::users_api::{get_user, create_user, update_user};
-use rocket::{Rocket, Build};
-
+use crate::users_api::{create_user, get_user, update_user, login};
+use rocket::{Build, Rocket};
 
 pub fn rocket(db: Database) -> Rocket<Build> {
     rocket::build()
         .manage(db)
-        .mount("/", routes![get_user, create_user, update_user])
+        .mount("/", routes![get_user, create_user, update_user, login])
 }
 
 pub async fn create_mongo_connection(config: &Config) -> Result<Database, Box<dyn Error>> {

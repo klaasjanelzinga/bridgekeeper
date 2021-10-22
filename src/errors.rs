@@ -1,3 +1,4 @@
+use rocket::http::Status;
 use std::fmt::{Debug, Display, Formatter};
 
 #[derive(Debug)]
@@ -11,6 +12,8 @@ pub enum ErrorKind {
     MongoDbError {
         mongodb_error: mongodb::error::Error,
     },
+    CannotVerifyPassword,
+    CannotEncodePassword,
 }
 
 impl std::error::Error for ErrorKind {}
@@ -22,7 +25,9 @@ impl Display for ErrorKind {
             ErrorKind::IllegalRequest { message } => write!(f, "IllegalRequest: {}", message),
             ErrorKind::MongoDbError { mongodb_error } => {
                 write!(f, "MongoDbError: {}", mongodb_error)
-            }
+            },
+            ErrorKind::CannotEncodePassword => write!(f, "CannotEncodePassword"),
+            ErrorKind::CannotVerifyPassword => write!(f, "CannotVerifyPassword"),
         }
     }
 }
@@ -31,6 +36,27 @@ impl From<mongodb::error::Error> for ErrorKind {
     fn from(mongo_error: mongodb::error::Error) -> Self {
         ErrorKind::MongoDbError {
             mongodb_error: mongo_error,
+        }
+    }
+}
+
+impl From<ErrorKind> for Status {
+    fn from(error_kind: ErrorKind) -> Self {
+        match error_kind {
+            ErrorKind::EntityNotFound { message } => {
+                trace!("{}", message);
+                Status::NotFound
+            },
+            ErrorKind::MongoDbError { mongodb_error } => {
+                warn!("{}", mongodb_error);
+                Status::ServiceUnavailable
+            },
+            ErrorKind::IllegalRequest { message } => {
+                info!("{}", message);
+                Status::BadRequest
+            },
+            ErrorKind::CannotVerifyPassword => Status::BadRequest,
+            ErrorKind::CannotEncodePassword => Status::BadRequest,
         }
     }
 }

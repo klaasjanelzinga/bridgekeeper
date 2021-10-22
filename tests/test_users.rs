@@ -1,4 +1,4 @@
-use linkje_api::users::{GetUserResponse, UpdateUserRequest, CreateUserRequest};
+use linkje_api::users::{GetUserResponse, UpdateUserRequest, CreateUserRequest, LoginRequest};
 use rocket::local::asynchronous::Client;
 use rocket::http::Status;
 use fake::faker::name::en::Name;
@@ -12,14 +12,16 @@ mod common;
 // Create the user.
 async fn create_user(client: &Client, create_user_request: &CreateUserRequest) -> GetUserResponse {
     let response = client.post("/user").json(&create_user_request).dispatch().await;
-    assert_eq!(response.status(), Status::Ok); // TODO Created
+    assert_eq!(response.status(), Status::Created);
 
     serde_json::from_str(&response.into_string().await.unwrap()).unwrap()
 }
 
 // Update  the user.
 async fn update_user(client: &Client, update_request: &UpdateUserRequest) -> GetUserResponse {
-    let response = client.post("/user").json(&update_request).dispatch().await;
+    let response = client.put("/user").json(&update_request).dispatch().await;
+    assert_eq!(response.status(), Status::Ok);
+
     serde_json::from_str(&response.into_string().await.unwrap()).unwrap()
 }
 
@@ -118,23 +120,37 @@ async fn test_update_user() {
 
     ()
 }
-//     // -- Validate update with a get.
-//     let updated_user_with_get = get_user(&route, &created_user_id).await;
-//     assert_eq!(updated_user_with_get.first_name, update_user_request.first_name);
-//     assert_eq!(updated_user_with_get.last_name, update_user_request.last_name);
-//     assert_eq!(updated_user_with_get.email_address, updated_user.email_address);
-//     assert_eq!(updated_user_with_get.display_name, update_user_request.display_name);
-//
-//     // -- Update a user that was not yet created, just reuse the previous request with another id.
-//     update_user_request.user_id = String::from("unknown-user-id");
-//     // --- update user
-//     let update_response = warp::test::request()
-//         .method("PUT")
-//         .path("/user")
-//         .json(&update_user_request)
-//         .reply(&route)
-//         .await;
-//     assert_eq!(update_response.status(), StatusCode::NOT_FOUND);
-//
-//     ()
-// }
+
+/// Test login the user:
+/// - Create the user.
+/// - Login.
+#[rocket::async_test]
+async fn test_login_user() {
+    let test_fixtures = common::setup().await;
+    common::empty_users_collection(&test_fixtures.db).await;
+
+    let create_user_request = common::create_user_request();
+    create_user(&test_fixtures.client, &create_user_request).await;
+
+    let login_request = LoginRequest {
+        email_address: create_user_request.email_address.clone(),
+        password: create_user_request.new_password.clone(),
+    };
+
+    let response = test_fixtures.client.post("/user/login").json(&login_request).dispatch().await;
+    assert_eq!(response.status(), Status::Ok);
+
+    let wrong_password = test_fixtures.client.post("/user/login").json(&LoginRequest {
+        email_address: create_user_request.email_address.clone(),
+        password: format!("wrong-{}", create_user_request.new_password.clone()),
+    }).dispatch().await;
+    assert_eq!(wrong_password.status(), Status::Unauthorized);
+
+    let wrong_email_address = test_fixtures.client.post("/user/login").json(&LoginRequest {
+        email_address: format!("invalid-{}", create_user_request.email_address.clone()),
+        password: create_user_request.new_password.clone(),
+    }).dispatch().await;
+    assert_eq!(wrong_email_address.status(), Status::Unauthorized);
+
+    ()
+}

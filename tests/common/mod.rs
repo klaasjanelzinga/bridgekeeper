@@ -4,7 +4,7 @@ use std::fmt::Display;
 use log::LevelFilter;
 use mongodb::Database;
 
-use fake::faker::internet::en::SafeEmail;
+use fake::faker::internet::en::{SafeEmail, Password};
 use fake::faker::name::en::{FirstName, LastName, Name};
 use fake::Fake;
 use linkje_api::config::Config;
@@ -82,10 +82,11 @@ where
 }
 
 pub fn create_user_request() -> CreateUserRequest {
-    given("UserRequest to create", || CreateUserRequest {
+    given("CreateUserRequest to create", || CreateUserRequest {
         email_address: SafeEmail().fake::<String>(),
         first_name: FirstName().fake(),
         last_name: LastName().fake(),
         display_name: Name().fake(),
+        new_password: Password(10..15).fake(),
     })
 }

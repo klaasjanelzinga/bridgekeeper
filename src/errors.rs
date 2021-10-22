@@ -16,6 +16,8 @@ pub enum ErrorKind {
     CannotEncodePassword,
     CannotCreateJwtToken,
     PasswordIncorrect,
+    NoTokenFound,
+    TokenInvalid,
 }
 
 impl std::error::Error for ErrorKind {}
@@ -32,6 +34,8 @@ impl Display for ErrorKind {
             ErrorKind::CannotVerifyPassword => write!(f, "CannotVerifyPassword"),
             ErrorKind::PasswordIncorrect => write!(f, "PasswordIncorrect"),
             ErrorKind::CannotCreateJwtToken => write!(f, "CannotCreateJwtToken"),
+            ErrorKind::NoTokenFound => write!(f, "NoTokenFound"),
+            ErrorKind::TokenInvalid => write!(f, "TokenInvalid"),
         }
     }
 }
@@ -63,6 +67,9 @@ impl From<ErrorKind> for Status {
             ErrorKind::CannotEncodePassword => Status::BadRequest,
             ErrorKind::PasswordIncorrect => Status::Unauthorized,
             ErrorKind::CannotCreateJwtToken => Status::Unauthorized,
+            ErrorKind::NoTokenFound => Status::Unauthorized,
+            ErrorKind::TokenInvalid=> Status::Unauthorized,
+
         }
     }
 }

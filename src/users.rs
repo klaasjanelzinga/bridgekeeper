@@ -1,16 +1,17 @@
-use crate::errors::ErrorKind;
-use crate::errors::ErrorKind::EntityNotFound;
+use std::fmt::{Display, Formatter};
+
 use argon2::Config;
-use jsonwebtoken::{encode, EncodingKey, Header};
 use mongodb::bson::doc;
 use mongodb::bson::Bson;
 use mongodb::{Collection, Database};
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use rocket::serde::{Deserialize, Serialize};
-use std::fmt::{Display, Formatter};
 use uuid::Uuid;
-use chrono::Utc;
+
+use crate::errors::ErrorKind;
+use crate::errors::ErrorKind::EntityNotFound;
+use crate::jwt;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(crate = "rocket::serde")]
@@ -149,13 +150,6 @@ impl Display for ChangePasswordRequest {
     }
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct JwtClaims {
-    pub email_address: String,
-    pub user_id: String,
-    pub exp: usize,
-}
-
 /// Creates the user collection for the database.
 fn user_collection(db: &Database) -> Collection<User> {
     db.collection::<User>("users")
@@ -219,28 +213,6 @@ async fn get_by_email(email_address: &str, db: &Database) -> Result<User, ErrorK
     }
 }
 
-pub fn create_jwt_token(user: &User) -> Result<String, ErrorKind> {
-    trace!("Creating a jwt for {}", user);
-    let expiration = Utc::now()
-        .checked_add_signed(chrono::Duration::days(20))
-        .expect("valid timestamp")
-        .timestamp();
-
-    let jwt_claims = JwtClaims {
-        email_address: user.email_address.clone(),
-        user_id: user.user_id.clone(),
-        exp: expiration as usize,
-    };
-
-    trace!("Encoding the jwt");
-    encode(
-        &Header::default(),
-        &jwt_claims,
-        &EncodingKey::from_secret("secret".as_ref()),
-    )
-    .or(Err(ErrorKind::CannotCreateJwtToken))
-}
-
 /// Log the user in and create a jwt for the session.
 ///
 /// ## Args:
@@ -259,7 +231,7 @@ pub async fn login(login_request: &LoginRequest, db: &Database) -> Result<String
     if !valid_password {
         return Err(ErrorKind::PasswordIncorrect);
     }
-    let token = create_jwt_token(&user)?;
+    let token = jwt::create_jwt_token(&user)?;
     debug!("Successfully logged in user {}", user);
     Ok(token)
 }
@@ -319,6 +291,10 @@ pub async fn create(user: &CreateUserRequest, db: &Database) -> Result<GetUserRe
 /// - MongoDbError - Something is off with mongo.
 pub async fn get(id: &str, db: &Database) -> Result<GetUserResponse, ErrorKind> {
     trace!("get({}, ...)", id);
+    // get token from header
+    // unwrap token to user-id, email-address.
+    // token.user-id should match id.
+    // token should be valid.
     let user = get_by_id(id, db).await?;
     Ok(GetUserResponse {
         user_id: user.user_id,

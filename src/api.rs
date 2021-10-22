@@ -1,33 +1,40 @@
-pub mod config;
-pub mod errors;
-pub mod users;
-
-#[macro_use]
-extern crate rocket;
-#[macro_use]
-extern crate log;
 extern crate argon2;
+#[macro_use] extern crate rocket;
 
-use crate::config::Config;
+use std::error::Error;
+
 use mongodb::options::ClientOptions;
 use mongodb::Client;
 use mongodb::Database;
-use std::error::Error;
+use rocket::{Build, Rocket};
+
+use crate::config::Config;
+use crate::users_api::{create_user, get_user, login, update_user};
+
+pub mod config;
+pub mod errors;
+pub mod jwt;
+pub mod users;
 
 pub mod users_api {
-    use crate::users::{CreateUserRequest, GetUserResponse, UpdateUserRequest, LoginRequest, LoginResponse};
     use mongodb::Database;
     use rocket::http::Status;
     use rocket::response::status;
     use rocket::serde::json::Json;
     use rocket::State;
 
+    use crate::jwt::ValidJwtToken;
+    use crate::users::{
+        CreateUserRequest, GetUserResponse, LoginRequest, LoginResponse, UpdateUserRequest,
+    };
+
     #[get("/user/<user_id>")]
     pub async fn get_user(
         user_id: &str,
         db: &State<Database>,
+        valid_jwt_token: ValidJwtToken,
     ) -> Result<Json<GetUserResponse>, Status> {
-        trace!("get_user({}, _)", &user_id);
+        trace!("get_user({}, _, {})", &user_id, valid_jwt_token);
         let get_user_response = crate::users::get(user_id, &db).await?;
         Ok(Json(get_user_response))
     }
@@ -36,8 +43,9 @@ pub mod users_api {
     pub async fn update_user(
         update_request: Json<UpdateUserRequest>,
         db: &State<Database>,
+        valid_jwt_token: ValidJwtToken,
     ) -> Result<Json<GetUserResponse>, Status> {
-        trace!("update_user(db, {}", update_request.user_id);
+        trace!("update_user(db, {}, {})", update_request.user_id, valid_jwt_token);
         let update_response = crate::users::update(&update_request, &db).await?;
         Ok(Json(update_response))
     }
@@ -52,20 +60,19 @@ pub mod users_api {
         Ok(status::Custom(Status::Created, Json(create_response)))
     }
 
-    #[post("/user/login", data="<login_request>")]
-    pub async fn login(login_request: Json<LoginRequest>, db: &State<Database>,) -> Result<Json<LoginResponse>, Status> {
+    #[post("/user/login", data = "<login_request>")]
+    pub async fn login(
+        login_request: Json<LoginRequest>,
+        db: &State<Database>,
+    ) -> Result<Json<LoginResponse>, Status> {
         trace!("login_request({}, _)", login_request.email_address);
         let login_result = crate::users::login(&login_request, &db).await;
         match login_result {
-            Ok(login_token) => {
-                Ok( Json(LoginResponse{
-                    token: login_token
-                }))
-            },
+            Ok(login_token) => Ok(Json(LoginResponse { token: login_token })),
             Err(error_kind) => {
                 trace!("Could not log user in {}", error_kind);
                 Err(Status::Unauthorized)
-            },
+            }
         }
     }
 
@@ -76,9 +83,6 @@ pub mod users_api {
     //     Ok()
     // }
 }
-
-use crate::users_api::{create_user, get_user, update_user, login};
-use rocket::{Build, Rocket};
 
 pub fn rocket(db: Database) -> Rocket<Build> {
     rocket::build()

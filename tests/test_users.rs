@@ -1,6 +1,6 @@
 use fake::faker::name::en::Name;
 use fake::Fake;
-use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
+use jsonwebtoken::{decode, Algorithm, Validation};
 use rocket::http::{Header, Status};
 use rocket::local::asynchronous::Client;
 
@@ -200,7 +200,7 @@ async fn test_login_user() {
     let login_response = login(&test_fixtures.client, &create_user_request).await;
     let token_message = decode::<JwtClaims>(
         &login_response.token,
-        &DecodingKey::from_secret("secret".as_ref()),
+        &test_fixtures.config.decoding_key,
         &Validation::new(Algorithm::HS256),
     );
     assert_eq!(

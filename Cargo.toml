@@ -28,4 +28,6 @@ rust-argon2 = "0.8"
 rand = "0.8.0"
 chrono = "0.4"
 
+base64 = "0.13.0"
+
 fake = "2.2"

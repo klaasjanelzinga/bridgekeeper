@@ -18,11 +18,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
     } else {
         init()
     }
-    let config = linkje_api::config::create().unwrap();
 
+    let config = linkje_api::config::Config::from_environment();
     let db = linkje_api::create_mongo_connection(&config).await?;
+
     info!("Starting server on port 8000");
-    linkje_api::rocket(db).launch().await?;
+    linkje_api::rocket(&db, &config).launch().await?;
 
     Ok(())
 }

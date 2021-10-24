@@ -14,15 +14,15 @@ use rocket::local::asynchronous::Client;
 use std::time::Duration;
 use tokio::time::sleep;
 
-pub struct TestFixtures {
+pub struct TestFixtures<'a> {
     pub db: Database,
-    pub config: Config,
+    pub config: Config<'a>,
     pub client: Client,
 }
 
 static LOG_INIT: Once = Once::new();
 
-pub async fn setup() -> TestFixtures {
+pub async fn setup<'a>() -> TestFixtures<'a> {
     LOG_INIT.call_once(|| {
         if env::var_os("RUST_LOG").is_none() {
             pretty_env_logger::formatted_timed_builder()
@@ -41,10 +41,14 @@ pub async fn setup() -> TestFixtures {
     env::set_var("MONGO_HOST", "localhost");
     env::set_var("MONGO_PORT", "7011");
     env::set_var("MONGO_DB", "linkje-test");
+    env::set_var("JWT_TOKEN_SECRET", "linkje-test");
 
-    let config = linkje_api::config::create().unwrap();
+    let config = linkje_api::config::Config::from_environment();
     let db = linkje_api::create_mongo_connection(&config).await.unwrap();
-    let client = Client::tracked(linkje_api::rocket(db.clone())).await.expect("Client expected");
+
+    let client = Client::tracked(
+        linkje_api::rocket(&db.clone(), &config.clone())
+    ).await.expect("Client expected");
 
     TestFixtures { config, db, client}
 }

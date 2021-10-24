@@ -27,6 +27,7 @@ pub mod users_api {
     use crate::users::{
         CreateUserRequest, GetUserResponse, LoginRequest, LoginResponse, UpdateUserRequest,
     };
+    use crate::config::Config;
 
     #[get("/user/<user_id>")]
     pub async fn get_user(
@@ -63,10 +64,11 @@ pub mod users_api {
     #[post("/user/login", data = "<login_request>")]
     pub async fn login(
         login_request: Json<LoginRequest>,
+        config: &State<Config<'_>>,
         db: &State<Database>,
     ) -> Result<Json<LoginResponse>, Status> {
         trace!("login_request({}, _)", login_request.email_address);
-        let login_result = crate::users::login(&login_request, &db).await;
+        let login_result = crate::users::login(&login_request, config, &db).await;
         match login_result {
             Ok(login_token) => Ok(Json(LoginResponse { token: login_token })),
             Err(error_kind) => {
@@ -84,13 +86,14 @@ pub mod users_api {
     // }
 }
 
-pub fn rocket(db: Database) -> Rocket<Build> {
+pub fn rocket(db: &Database, config: &Config<'static>) -> Rocket<Build> {
     rocket::build()
-        .manage(db)
+        .manage(db.clone())
+        .manage(config.clone())
         .mount("/", routes![get_user, create_user, update_user, login])
 }
 
-pub async fn create_mongo_connection(config: &Config) -> Result<Database, Box<dyn Error>> {
+pub async fn create_mongo_connection(config: &Config<'_>) -> Result<Database, Box<dyn Error>> {
     trace!("Connecting mongodb, config {}", config);
     let client_options = ClientOptions::parse(&config.mongo_url).await?;
     let client = Client::with_options(client_options)?;

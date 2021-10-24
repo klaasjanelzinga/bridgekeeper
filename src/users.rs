@@ -1,6 +1,5 @@
 use std::fmt::{Display, Formatter};
 
-use argon2::Config;
 use mongodb::bson::doc;
 use mongodb::bson::Bson;
 use mongodb::{Collection, Database};
@@ -12,6 +11,7 @@ use uuid::Uuid;
 use crate::errors::ErrorKind;
 use crate::errors::ErrorKind::EntityNotFound;
 use crate::jwt;
+use crate::config::Config;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(crate = "rocket::serde")]
@@ -174,7 +174,7 @@ fn hash_data(data: &str) -> Result<String, ErrorKind> {
         .take(32)
         .map(char::from)
         .collect::<String>();
-    let config = Config::default();
+    let config = argon2::Config::default();
 
     argon2::hash_encoded(data.as_bytes(), random_salt.as_bytes(), &config)
         .or(Err(ErrorKind::CannotEncodePassword))
@@ -223,7 +223,7 @@ async fn get_by_email(email_address: &str, db: &Database) -> Result<User, ErrorK
 /// The jwt token if succeeded or:
 /// - PasswordIncorrect - if the password is incorrect.
 /// - EntityNotFound - if the email address is not known.
-pub async fn login(login_request: &LoginRequest, db: &Database) -> Result<String, ErrorKind> {
+pub async fn login(login_request: &LoginRequest, config: &Config<'_>, db: &Database) -> Result<String, ErrorKind> {
     trace!("login({}, _)", login_request);
     let user = get_by_email(&login_request.email_address, db).await?;
     trace!("Validating password of user {}", user.email_address);
@@ -231,7 +231,7 @@ pub async fn login(login_request: &LoginRequest, db: &Database) -> Result<String
     if !valid_password {
         return Err(ErrorKind::PasswordIncorrect);
     }
-    let token = jwt::create_jwt_token(&user)?;
+    let token = jwt::create_jwt_token(&user, &config.encoding_key)?;
     debug!("Successfully logged in user {}", user);
     Ok(token)
 }

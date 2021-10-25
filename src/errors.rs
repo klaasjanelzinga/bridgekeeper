@@ -18,6 +18,9 @@ pub enum ErrorKind {
     PasswordIncorrect,
     NoTokenFound,
     TokenInvalid,
+    IllegalDataAccess{
+        message: String,
+    },
 }
 
 impl std::error::Error for ErrorKind {}
@@ -36,6 +39,7 @@ impl Display for ErrorKind {
             ErrorKind::CannotCreateJwtToken => write!(f, "CannotCreateJwtToken"),
             ErrorKind::NoTokenFound => write!(f, "NoTokenFound"),
             ErrorKind::TokenInvalid => write!(f, "TokenInvalid"),
+            ErrorKind::IllegalDataAccess { message }=> write!(f, "IllegalDataAccess: {}", message),
         }
     }
 }
@@ -68,7 +72,11 @@ impl From<ErrorKind> for Status {
             ErrorKind::PasswordIncorrect => Status::Unauthorized,
             ErrorKind::CannotCreateJwtToken => Status::Unauthorized,
             ErrorKind::NoTokenFound => Status::Unauthorized,
-            ErrorKind::TokenInvalid=> Status::Unauthorized,
+            ErrorKind::TokenInvalid => Status::Unauthorized,
+            ErrorKind::IllegalDataAccess { message } => {
+                warn!("An illegal access was made: {}", message);
+                Status::Forbidden
+            },
 
         }
     }

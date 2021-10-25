@@ -85,12 +85,16 @@ where
     result
 }
 
+pub fn fake_password() -> String {
+    Password(10..15).fake()
+}
+
 pub fn create_user_request() -> CreateUserRequest {
     given("CreateUserRequest to create", || CreateUserRequest {
         email_address: SafeEmail().fake::<String>(),
         first_name: FirstName().fake(),
         last_name: LastName().fake(),
         display_name: Name().fake(),
-        new_password: Password(10..15).fake(),
+        new_password: fake_password(),
     })
 }

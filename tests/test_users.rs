@@ -5,16 +5,15 @@ use rocket::http::{Header, Status};
 use rocket::local::asynchronous::Client;
 
 use linkje_api::jwt::JwtClaims;
-use linkje_api::users::{
-    CreateUserRequest, GetUserResponse, LoginRequest, LoginResponse, UpdateUserRequest,
-};
+use linkje_api::users::{CreateUserRequest, GetUserResponse, LoginRequest, LoginResponse, UpdateUserRequest, ChangePasswordResponse, ChangePasswordRequest};
+use crate::common::fake_password;
 
 #[macro_use]
 extern crate log;
 
 mod common;
 
-// Create the user.
+/// Create the user.
 async fn create_user(client: &Client, create_user_request: &CreateUserRequest) -> GetUserResponse {
     let response = client
         .post("/user")
@@ -26,7 +25,7 @@ async fn create_user(client: &Client, create_user_request: &CreateUserRequest) -
     serde_json::from_str(&response.into_string().await.unwrap()).unwrap()
 }
 
-// Update the user.
+/// Update the user.
 async fn update_user(
     client: &Client,
     update_request: &UpdateUserRequest,
@@ -43,7 +42,31 @@ async fn update_user(
     serde_json::from_str(&response.into_string().await.unwrap()).unwrap()
 }
 
-// Get user by the user_id.
+/// Change password for a user.
+async fn change_password(
+    client: &Client,
+    user_id: &str,
+    token: &str,
+    current_password: &str,
+    new_password: &str
+) -> ChangePasswordResponse {
+    let change_password_request = ChangePasswordRequest {
+        current_password: String::from(current_password),
+        new_password: String::from(new_password),
+    };
+
+    let response = client
+        .post(format!("/user/{}/change-password", user_id))
+        .json(&change_password_request)
+        .header(Header::new("Authorization", format!("Bearer {}", token)))
+        .dispatch()
+        .await;
+    assert_eq!(response.status(), Status::Ok);
+
+    serde_json::from_str(&response.into_string().await.unwrap()).unwrap()
+}
+
+/// Get user by the user_id.
 async fn get_user(client: &Client, user_id: &String, token: &str) -> GetUserResponse {
     let response = client
         .get(format!("/user/{}", user_id))
@@ -72,7 +95,7 @@ async fn login(client: &Client, create_user_request: &CreateUserRequest) -> Logi
 /// Test get user:
 /// - Create the user.
 /// - Get user with the user-id -> OK.
-/// - Get user with an unknown user-id -> NOT_FOUND.
+/// - Get user with an unknown user-id -> FORBIDDEN, since request does not match token.
 #[rocket::async_test]
 async fn test_get_user() {
     let test_fixtures = common::setup().await;
@@ -98,7 +121,7 @@ async fn test_get_user() {
         .header(Header::new("Authorization", format!("Bearer {}", token)))
         .dispatch()
         .await;
-    assert_eq!(Status::NotFound, response.status());
+    assert_eq!(Status::Forbidden, response.status()); // data mismatches token.
 
     ()
 }
@@ -231,4 +254,87 @@ async fn test_login_user() {
     assert_eq!(wrong_email_address.status(), Status::Unauthorized);
 
     ()
+}
+
+/// Test authorization:
+/// - Two users created. Both logged in.
+/// - User one uses the token of the other user, => Forbidden.
+#[rocket::async_test]
+async fn test_authorization() {
+    let test_fixtures = common::setup().await;
+    common::empty_users_collection(&test_fixtures.db).await;
+
+    let create_first_user_request = common::create_user_request();
+    let created_first_user = create_user(&test_fixtures.client, &create_first_user_request).await;
+    let login_response_first_user = login(&test_fixtures.client, &create_first_user_request).await;
+
+    let create_second_user_request = common::create_user_request();
+    let created_second_user = create_user(&test_fixtures.client, &create_second_user_request).await;
+    let login_response_second_user = login(&test_fixtures.client, &create_second_user_request).await;
+
+    // get with own tokens
+    get_user(&test_fixtures.client, &created_first_user.user_id, &login_response_first_user.token).await;
+    get_user(&test_fixtures.client, &created_second_user.user_id, &login_response_second_user.token).await;
+
+    // cross the tokens, should return 403.
+     let response = test_fixtures.client
+        .get(format!("/user/{}", created_first_user.user_id))
+        .header(Header::new("Authorization", format!("Bearer {}", login_response_second_user.token)))
+        .dispatch()
+        .await;
+    assert_eq!(response.status(), Status::Forbidden);
+
+    ()
+}
+
+
+/// Test changing of password:
+/// - Create user.
+/// - Login.
+/// - Change password.
+/// - Login with new password.
+#[rocket::async_test]
+async fn test_change_password() {
+     let test_fixtures = common::setup().await;
+    common::empty_users_collection(&test_fixtures.db).await;
+
+    let create_user_request = common::create_user_request();
+    let created_user = create_user(&test_fixtures.client, &create_user_request).await;
+
+    let login_response = login(&test_fixtures.client, &create_user_request).await;
+    let new_password = fake_password();
+
+    let change_password_response = change_password(
+        &test_fixtures.client,
+        &created_user.user_id,
+        &login_response.token,
+        &create_user_request.new_password,
+        &new_password).await;
+
+    // login with the old password -> NotAuthorized
+    let login_request = LoginRequest {
+        email_address: create_user_request.email_address.clone(),
+        password: create_user_request.new_password.clone(),
+    };
+    let response = test_fixtures.client
+        .post("/user/login")
+        .json(&login_request)
+        .dispatch()
+        .await;
+    assert_eq!(response.status(), Status::Unauthorized);
+
+    // login with the new password -> Ok
+    let login_request = LoginRequest {
+        email_address: create_user_request.email_address.clone(),
+        password: new_password.clone(),
+    };
+    let response = test_fixtures.client
+        .post("/user/login")
+        .json(&login_request)
+        .dispatch()
+        .await;
+    assert_eq!(response.status(), Status::Ok);
+
+
+   ()
 }

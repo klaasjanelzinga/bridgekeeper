@@ -59,7 +59,7 @@ pub fn create_jwt_token(user: &User, encoding_key: &EncodingKey) -> Result<Strin
 
 #[derive(Debug)]
 pub struct ValidJwtToken {
-    jwt_claims: JwtClaims,
+    pub jwt_claims: JwtClaims,
 }
 
 impl Display for ValidJwtToken {

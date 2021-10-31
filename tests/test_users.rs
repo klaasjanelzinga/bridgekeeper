@@ -4,9 +4,12 @@ use jsonwebtoken::{decode, Algorithm, Validation};
 use rocket::http::{Header, Status};
 use rocket::local::asynchronous::Client;
 
-use linkje_api::jwt::JwtClaims;
-use linkje_api::users::{CreateUserRequest, GetUserResponse, LoginRequest, LoginResponse, UpdateUserRequest, ChangePasswordResponse, ChangePasswordRequest};
 use crate::common::fake_password;
+use linkje_api::jwt::JwtClaims;
+use linkje_api::users::{
+    ChangePasswordRequest, ChangePasswordResponse, CreateUserRequest, GetUserResponse,
+    LoginRequest, LoginResponse, UpdateUserRequest,
+};
 
 #[macro_use]
 extern crate log;
@@ -48,8 +51,8 @@ async fn change_password(
     user_id: &str,
     token: &str,
     current_password: &str,
-    new_password: &str
-) -> ChangePasswordResponse {
+    new_password: &str,
+) -> Result<ChangePasswordResponse, Status> {
     let change_password_request = ChangePasswordRequest {
         current_password: String::from(current_password),
         new_password: String::from(new_password),
@@ -61,9 +64,12 @@ async fn change_password(
         .header(Header::new("Authorization", format!("Bearer {}", token)))
         .dispatch()
         .await;
-    assert_eq!(response.status(), Status::Ok);
 
-    serde_json::from_str(&response.into_string().await.unwrap()).unwrap()
+    if response.status() == Status::Ok {
+        Ok(serde_json::from_str(&response.into_string().await.unwrap()).unwrap())
+    } else {
+        Err(response.status())
+    }
 }
 
 /// Get user by the user_id.
@@ -270,16 +276,31 @@ async fn test_authorization() {
 
     let create_second_user_request = common::create_user_request();
     let created_second_user = create_user(&test_fixtures.client, &create_second_user_request).await;
-    let login_response_second_user = login(&test_fixtures.client, &create_second_user_request).await;
+    let login_response_second_user =
+        login(&test_fixtures.client, &create_second_user_request).await;
 
     // get with own tokens
-    get_user(&test_fixtures.client, &created_first_user.user_id, &login_response_first_user.token).await;
-    get_user(&test_fixtures.client, &created_second_user.user_id, &login_response_second_user.token).await;
+    get_user(
+        &test_fixtures.client,
+        &created_first_user.user_id,
+        &login_response_first_user.token,
+    )
+    .await;
+    get_user(
+        &test_fixtures.client,
+        &created_second_user.user_id,
+        &login_response_second_user.token,
+    )
+    .await;
 
     // cross the tokens, should return 403.
-     let response = test_fixtures.client
+    let response = test_fixtures
+        .client
         .get(format!("/user/{}", created_first_user.user_id))
-        .header(Header::new("Authorization", format!("Bearer {}", login_response_second_user.token)))
+        .header(Header::new(
+            "Authorization",
+            format!("Bearer {}", login_response_second_user.token),
+        ))
         .dispatch()
         .await;
     assert_eq!(response.status(), Status::Forbidden);
@@ -287,15 +308,17 @@ async fn test_authorization() {
     ()
 }
 
-
 /// Test changing of password:
 /// - Create user.
 /// - Login.
 /// - Change password.
-/// - Login with new password.
+/// - Login with old password -> Unauthorized.
+/// - Login with new password -> Ok.
+/// - Change password with invalid current password -> Unauthorized.
+/// - Change password with invalid new passwords -> BadRequest.
 #[rocket::async_test]
 async fn test_change_password() {
-     let test_fixtures = common::setup().await;
+    let test_fixtures = common::setup().await;
     common::empty_users_collection(&test_fixtures.db).await;
 
     let create_user_request = common::create_user_request();
@@ -304,19 +327,26 @@ async fn test_change_password() {
     let login_response = login(&test_fixtures.client, &create_user_request).await;
     let new_password = fake_password();
 
-    let change_password_response = change_password(
+    let change_password_response_result = change_password(
         &test_fixtures.client,
         &created_user.user_id,
         &login_response.token,
         &create_user_request.new_password,
-        &new_password).await;
+        &new_password,
+    )
+    .await;
+    assert!(change_password_response_result.is_ok());
+    let change_password_response = change_password_response_result.unwrap();
+    assert_eq!(change_password_response.success, true);
+    assert!(change_password_response.error_message.is_none());
 
     // login with the old password -> NotAuthorized
     let login_request = LoginRequest {
         email_address: create_user_request.email_address.clone(),
         password: create_user_request.new_password.clone(),
     };
-    let response = test_fixtures.client
+    let response = test_fixtures
+        .client
         .post("/user/login")
         .json(&login_request)
         .dispatch()
@@ -328,13 +358,57 @@ async fn test_change_password() {
         email_address: create_user_request.email_address.clone(),
         password: new_password.clone(),
     };
-    let response = test_fixtures.client
+    let response = test_fixtures
+        .client
         .post("/user/login")
         .json(&login_request)
         .dispatch()
         .await;
     assert_eq!(response.status(), Status::Ok);
 
+    // Change password with invalid current password.
+    let change_password_response_result = change_password(
+        &test_fixtures.client,
+        &created_user.user_id,
+        &login_response.token,
+        &create_user_request.new_password,
+        &new_password,
+    )
+    .await;
+    assert!(change_password_response_result.is_err());
+    assert_eq!(
+        change_password_response_result.err().unwrap(),
+        Status::Unauthorized
+    );
 
-   ()
+    // Test several invalid passwords
+    let invalid_passwords = [
+        "eE$2123",         // not long enough
+        "k1ekjekjekje",    // no uppers
+        "K1EKJEKJEKJEKJE", // no lowers
+        "123123123123",    // no letters
+        "kjeKJEkjekje",    // no digits
+        "KJEkje123kje",    // no specials
+    ];
+    for invalid_password in invalid_passwords {
+        let change_password_response_result = change_password(
+            &test_fixtures.client,
+            &created_user.user_id,
+            &login_response.token,
+            &new_password,
+            invalid_password,
+        )
+        .await;
+        assert!(
+            change_password_response_result.is_err(),
+            "ChangePassword request not in err for {}",
+            invalid_password
+        );
+        assert_eq!(
+            change_password_response_result.err().unwrap(),
+            Status::BadRequest
+        );
+    }
+
+    ()
 }

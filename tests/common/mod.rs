@@ -4,13 +4,13 @@ use std::fmt::Display;
 use log::LevelFilter;
 use mongodb::Database;
 
-use fake::faker::internet::en::{SafeEmail, Password};
+use fake::faker::internet::en::{Password, SafeEmail};
 use fake::faker::name::en::{FirstName, LastName, Name};
 use fake::Fake;
 use linkje_api::config::Config;
-use linkje_api::users::{User, CreateUserRequest};
-use std::sync::Once;
+use linkje_api::users::{CreateUserRequest, User};
 use rocket::local::asynchronous::Client;
+use std::sync::Once;
 use std::time::Duration;
 use tokio::time::sleep;
 
@@ -21,6 +21,12 @@ pub struct TestFixtures<'a> {
 }
 
 static LOG_INIT: Once = Once::new();
+
+fn set_env_var_if_not_set(env_var: &str, default_value: &str) {
+    if env::var(env_var).is_err() {
+        env::set_var(env_var, default_value)
+    }
+}
 
 pub async fn setup<'a>() -> TestFixtures<'a> {
     LOG_INIT.call_once(|| {
@@ -35,22 +41,22 @@ pub async fn setup<'a>() -> TestFixtures<'a> {
             pretty_env_logger::init();
         }
     });
-    env::set_var("ENVIRONMENT", "localhost");
-    env::set_var("MONGO_USER", "linkje_test");
-    env::set_var("MONGO_PASS", "test");
-    env::set_var("MONGO_HOST", "localhost");
-    env::set_var("MONGO_PORT", "7011");
-    env::set_var("MONGO_DB", "linkje-test");
-    env::set_var("JWT_TOKEN_SECRET", "linkje-test");
+    set_env_var_if_not_set("ENVIRONMENT", "localhost");
+    set_env_var_if_not_set("MONGO_USER", "linkje_test");
+    set_env_var_if_not_set("MONGO_PASS", "test");
+    set_env_var_if_not_set("MONGO_HOST", "localhost");
+    set_env_var_if_not_set("MONGO_PORT", "7011");
+    set_env_var_if_not_set("MONGO_DB", "linkje-test");
+    set_env_var_if_not_set("JWT_TOKEN_SECRET", "linkje-test");
 
     let config = linkje_api::config::Config::from_environment();
     let db = linkje_api::create_mongo_connection(&config).await.unwrap();
 
-    let client = Client::tracked(
-        linkje_api::rocket(&db.clone(), &config.clone())
-    ).await.expect("Client expected");
+    let client = Client::tracked(linkje_api::rocket(&db.clone(), &config.clone()))
+        .await
+        .expect("Client expected");
 
-    TestFixtures { config, db, client}
+    TestFixtures { config, db, client }
 }
 
 static mut EMPTY_USERS_COLLECTION_BARRIER: u32 = 1;
@@ -86,7 +92,7 @@ where
 }
 
 pub fn fake_password() -> String {
-    Password(10..15).fake()
+    format!("Rr$-{}", Password(10..15).fake::<String>())
 }
 
 pub fn create_user_request() -> CreateUserRequest {

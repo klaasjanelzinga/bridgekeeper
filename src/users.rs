@@ -156,8 +156,7 @@ pub struct ChangePasswordRequest {
 
 impl Display for ChangePasswordRequest {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ChangePasswordRequest")
-            .finish()
+        f.debug_struct("ChangePasswordRequest").finish()
     }
 }
 
@@ -175,7 +174,6 @@ impl Display for ChangePasswordResponse {
             .field("error_message", &self.error_message)
             .finish()
     }
-
 }
 
 /// Creates the user collection for the database.
@@ -211,6 +209,39 @@ fn hash_data(data: &str) -> Result<String, ErrorKind> {
 /// Verify the input data with a hashed result.
 fn verify_input(data: &str, hash: &str) -> Result<bool, ErrorKind> {
     argon2::verify_encoded(hash, data.as_bytes()).or(Err(ErrorKind::CannotVerifyPassword))
+}
+
+/// Verify a password if it confirms to some minimum requirement.
+fn verify_password(password: &str) -> Result<(), ErrorKind> {
+    if password.len() < 8 {
+        return Err(ErrorKind::PasswordInvalid {
+            message: String::from("New password not long enough"),
+        });
+    }
+
+    if !password.chars().any(char::is_numeric) {
+        return Err(ErrorKind::PasswordInvalid {
+            message: String::from("New password does not contain any digits"),
+        });
+    }
+
+    if !password.chars().any(char::is_uppercase) {
+        return Err(ErrorKind::PasswordInvalid {
+            message: String::from("New password does not contain any capitals"),
+        });
+    }
+    if !password.chars().any(char::is_lowercase) {
+        return Err(ErrorKind::PasswordInvalid {
+            message: String::from("New password does not contain any lower case letters"),
+        });
+    }
+    if !password.chars().any(|c| char::is_ascii_punctuation(&c)) {
+        return Err(ErrorKind::PasswordInvalid {
+            message: String::from("New password does not contain any special characters"),
+        });
+    }
+
+    Ok(())
 }
 
 /// Fetches the user entity by user_id. Returns EntityNotFound if not found.
@@ -375,14 +406,38 @@ pub async fn update(
     Ok(GetUserResponse::from(&db_user))
 }
 
+/// Change the password for the user. The user should provide a valid new password and the correct
+/// current password.
+///
+/// ## Args:
+/// - user: The user to change the password for.
+/// - change_password_request - The new data.
+/// - db - The mongo db instance.
+///
+/// ## Returns:
+/// The ChangePasswordResponse or an error:
+/// - PasswordIncorrect - if the current_password is not correct.
+///
 pub async fn change_password_for_user(
     user: &User,
     change_password_request: &ChangePasswordRequest,
     db: &Database,
 ) -> Result<ChangePasswordResponse, ErrorKind> {
-
-    // validate change_password_request.current_password is correct.
+    trace!(
+        "change_password_for_user({}, {}, _",
+        user,
+        change_password_request
+    );
+    trace!("Validating the password for the user");
+    let valid_password = verify_input(
+        &change_password_request.current_password,
+        &user.password_hash,
+    )?;
+    if !valid_password {
+        return Err(ErrorKind::PasswordIncorrect);
+    }
     // validate change_password_request.new_password contains digits etc.
+    verify_password(&change_password_request.new_password)?;
 
     let password_hash_and_salt = hash_data(&change_password_request.new_password)?;
     let mut db_user = get_by_id(&user.user_id, db).await?;

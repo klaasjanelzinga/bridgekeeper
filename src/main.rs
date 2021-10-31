@@ -1,11 +1,11 @@
-#[macro_use] extern crate log;
-
+#[macro_use]
+extern crate log;
 
 use std::env::var_os;
 use std::error::Error;
 
 use log::LevelFilter;
-use pretty_env_logger::{init, formatted_timed_builder};
+use pretty_env_logger::{formatted_timed_builder, init};
 
 #[rocket::main]
 async fn main() -> Result<(), Box<dyn Error>> {

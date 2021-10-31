@@ -10,7 +10,7 @@ use mongodb::Database;
 use rocket::{Build, Rocket};
 
 use crate::config::Config;
-use crate::users_api::{create_user, get_user, login, update_user, change_password};
+use crate::users_api::{change_password, create_user, get_user, login, update_user};
 
 pub mod config;
 pub mod errors;
@@ -26,7 +26,10 @@ pub mod users_api {
 
     use crate::config::Config;
     use crate::jwt::ValidJwtToken;
-    use crate::users::{get_with_user_id, ChangePasswordRequest, CreateUserRequest, GetUserResponse, LoginRequest, LoginResponse, UpdateUserRequest, change_password_for_user, ChangePasswordResponse};
+    use crate::users::{
+        change_password_for_user, get_with_user_id, ChangePasswordRequest, ChangePasswordResponse,
+        CreateUserRequest, GetUserResponse, LoginRequest, LoginResponse, UpdateUserRequest,
+    };
 
     #[get("/user/<user_id>")]
     pub async fn get_user(
@@ -101,7 +104,10 @@ pub fn rocket(db: &Database, config: &Config<'static>) -> Rocket<Build> {
     rocket::build()
         .manage(db.clone())
         .manage(config.clone())
-        .mount("/", routes![get_user, create_user, update_user, login, change_password])
+        .mount(
+            "/",
+            routes![get_user, create_user, update_user, login, change_password],
+        )
 }
 
 pub async fn create_mongo_connection(config: &Config<'_>) -> Result<Database, Box<dyn Error>> {

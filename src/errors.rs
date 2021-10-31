@@ -12,13 +12,16 @@ pub enum ErrorKind {
     MongoDbError {
         mongodb_error: mongodb::error::Error,
     },
+    PasswordInvalid {
+        message: String,
+    },
     CannotVerifyPassword,
     CannotEncodePassword,
     CannotCreateJwtToken,
     PasswordIncorrect,
     NoTokenFound,
     TokenInvalid,
-    IllegalDataAccess{
+    IllegalDataAccess {
         message: String,
     },
 }
@@ -30,16 +33,17 @@ impl Display for ErrorKind {
         match &*self {
             ErrorKind::EntityNotFound { message } => write!(f, "EntityNotFound: {}", message),
             ErrorKind::IllegalRequest { message } => write!(f, "IllegalRequest: {}", message),
+            ErrorKind::PasswordInvalid { message } => write!(f, "PasswordInvalid: {}", message),
             ErrorKind::MongoDbError { mongodb_error } => {
                 write!(f, "MongoDbError: {}", mongodb_error)
-            },
+            }
             ErrorKind::CannotEncodePassword => write!(f, "CannotEncodePassword"),
             ErrorKind::CannotVerifyPassword => write!(f, "CannotVerifyPassword"),
             ErrorKind::PasswordIncorrect => write!(f, "PasswordIncorrect"),
             ErrorKind::CannotCreateJwtToken => write!(f, "CannotCreateJwtToken"),
             ErrorKind::NoTokenFound => write!(f, "NoTokenFound"),
             ErrorKind::TokenInvalid => write!(f, "TokenInvalid"),
-            ErrorKind::IllegalDataAccess { message }=> write!(f, "IllegalDataAccess: {}", message),
+            ErrorKind::IllegalDataAccess { message } => write!(f, "IllegalDataAccess: {}", message),
         }
     }
 }
@@ -58,15 +62,19 @@ impl From<ErrorKind> for Status {
             ErrorKind::EntityNotFound { message } => {
                 trace!("{}", message);
                 Status::NotFound
-            },
+            }
             ErrorKind::MongoDbError { mongodb_error } => {
                 warn!("{}", mongodb_error);
                 Status::ServiceUnavailable
-            },
+            }
+            ErrorKind::PasswordInvalid { message } => {
+                info!("{}", message);
+                Status::BadRequest
+            }
             ErrorKind::IllegalRequest { message } => {
                 info!("{}", message);
                 Status::BadRequest
-            },
+            }
             ErrorKind::CannotVerifyPassword => Status::BadRequest,
             ErrorKind::CannotEncodePassword => Status::BadRequest,
             ErrorKind::PasswordIncorrect => Status::Unauthorized,
@@ -76,8 +84,7 @@ impl From<ErrorKind> for Status {
             ErrorKind::IllegalDataAccess { message } => {
                 warn!("An illegal access was made: {}", message);
                 Status::Forbidden
-            },
-
+            }
         }
     }
 }

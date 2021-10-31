@@ -1,0 +1,13 @@
+name: Run tests
+on:
+  push:
+    branches: '**'
+jobs:
+  build:
+    name: make-docker-image-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+      - name: Verify the build
+        run: make run-tests-in-docker

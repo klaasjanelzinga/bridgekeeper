@@ -7,3 +7,13 @@ dev-infra-down:
 test:
 	cargo test
 
+format:
+	cargo fmt --all
+
+build:
+	cargo fmt --all -- --check
+	cargo test
+
+run-tests-in-docker:
+	docker-compose -f docker-compose-test.yml --env-file etc/test.env up --build --remove-orphans --exit-code-from unittests
+	docker-compose -f docker-compose-test.yml --env-file etc/test.env down --remove-orphans

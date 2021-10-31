@@ -1,6 +1,6 @@
+use jsonwebtoken::{DecodingKey, EncodingKey};
 use std::env;
 use std::fmt::{Display, Formatter};
-use jsonwebtoken::{DecodingKey, EncodingKey};
 
 #[derive(Clone)]
 pub struct Config<'a> {
@@ -13,11 +13,13 @@ pub struct Config<'a> {
 }
 
 fn os_var_as_string(var: &str) -> String {
-    env::var_os(var).expect(format!("Environment {} not set", var).as_ref()).into_string().unwrap()
+    env::var_os(var)
+        .expect(format!("Environment {} not set", var).as_ref())
+        .into_string()
+        .unwrap()
 }
 
 impl Config<'_> {
-
     pub fn from_environment() -> Self {
         let mongo_db = os_var_as_string("MONGO_DB");
         let mongo_host = os_var_as_string("MONGO_HOST");
@@ -60,4 +62,3 @@ impl Display for Config<'_> {
             .finish()
     }
 }
-

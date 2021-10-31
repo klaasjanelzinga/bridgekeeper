@@ -1,15 +1,15 @@
 use std::fmt::{Display, Formatter};
 
 use chrono::Utc;
-use jsonwebtoken::{Algorithm, decode, DecodingKey, encode, EncodingKey, Header, Validation};
+use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use rocket::http::Status;
-use rocket::request::{Request, FromRequest, Outcome};
+use rocket::request::{FromRequest, Outcome, Request};
 use rocket::serde::{Deserialize, Serialize};
 
+use crate::config::Config;
 use crate::errors::ErrorKind;
 use crate::errors::ErrorKind::TokenInvalid;
 use crate::users::User;
-use crate::config::Config;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct JwtClaims {
@@ -48,14 +48,8 @@ pub fn create_jwt_token(user: &User, encoding_key: &EncodingKey) -> Result<Strin
     };
 
     trace!("Encoding the jwt");
-    encode(
-        &Header::default(),
-        &jwt_claims,
-        encoding_key,
-    )
-    .or(Err(ErrorKind::CannotCreateJwtToken))
+    encode(&Header::default(), &jwt_claims, encoding_key).or(Err(ErrorKind::CannotCreateJwtToken))
 }
-
 
 #[derive(Debug)]
 pub struct ValidJwtToken {
@@ -72,23 +66,22 @@ impl Display for ValidJwtToken {
 
 #[rocket::async_trait]
 impl<'r> FromRequest<'r> for ValidJwtToken {
-
     type Error = ErrorKind;
 
     async fn from_request(req: &'r Request<'_>) -> Outcome<Self, Self::Error> {
         fn is_valid(token: &str, decoding_key: &DecodingKey) -> Result<JwtClaims, ErrorKind> {
             trace!("Validating jwt token {}", token);
             if !token.starts_with("Bearer ") {
-                return Err(TokenInvalid)
+                return Err(TokenInvalid);
             }
             let token_message = decode::<JwtClaims>(
                 &token[7..token.len()],
                 decoding_key,
-                &Validation::new(Algorithm::HS256)
+                &Validation::new(Algorithm::HS256),
             );
             match token_message {
                 Ok(token_data) => Ok(token_data.claims),
-                Err(_) => Err(TokenInvalid)
+                Err(_) => Err(TokenInvalid),
             }
         }
 
@@ -99,10 +92,10 @@ impl<'r> FromRequest<'r> for ValidJwtToken {
             Some(key) => {
                 let check_key = is_valid(key, &config.decoding_key);
                 match check_key {
-                    Ok(claims) => Outcome::Success(ValidJwtToken{ jwt_claims: claims }),
-                    Err(_) => Outcome::Failure((Status::Unauthorized, ErrorKind::TokenInvalid))
+                    Ok(claims) => Outcome::Success(ValidJwtToken { jwt_claims: claims }),
+                    Err(_) => Outcome::Failure((Status::Unauthorized, ErrorKind::TokenInvalid)),
                 }
-            },
+            }
         }
     }
 }

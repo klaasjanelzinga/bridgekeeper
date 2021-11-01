@@ -3,6 +3,7 @@ version: '3.3'
 services:
   unittests:
     build:
+      context: .
       dockerfile: Dockerfile
     depends_on:
       - mongo

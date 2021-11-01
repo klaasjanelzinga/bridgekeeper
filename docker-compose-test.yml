@@ -4,8 +4,6 @@ services:
   unittests:
     build:
       dockerfile: Dockerfile
-    env_file:
-      - etc/test.env
     depends_on:
       - mongo
     volumes:
@@ -16,8 +14,6 @@ services:
     build:
       context: infra/mongo
       dockerfile: Dockerfile
-    env_file:
-      - etc/test.env
     environment:
       MONGO_INITDB_ROOT_USERNAME: $MONGO_ROOT_USER
       MONGO_INITDB_ROOT_PASSWORD: $MONGO_ROOT_PASS

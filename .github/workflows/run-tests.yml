@@ -9,5 +9,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v1
+      - name: Decrypt the test env file
+        env:
+          TEST_ENV_KEY: ${{secrets.TEST_ENV_KEY}}
+        run: scripts/decrypt-test-env-file.sh
       - name: Verify the build
         run: make run-tests-in-docker

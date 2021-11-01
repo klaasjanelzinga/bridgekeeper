@@ -6,6 +6,8 @@ services:
       dockerfile: Dockerfile
     depends_on:
       - mongo
+    env_file:
+      - test.env
     volumes:
       - .:/usr/src/app
     command: ./test-entrypoint.sh
@@ -14,6 +16,8 @@ services:
     build:
       context: infra/mongo
       dockerfile: Dockerfile
+    env_file:
+      - test.env
     environment:
       MONGO_INITDB_ROOT_USERNAME: $MONGO_ROOT_USER
       MONGO_INITDB_ROOT_PASSWORD: $MONGO_ROOT_PASS

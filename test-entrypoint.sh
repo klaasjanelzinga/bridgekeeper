@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-env
-
 res=1
 retries=0
 while [ $res -ne 0 ]

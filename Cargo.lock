@@ -860,6 +860,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+ "totp-lite",
  "uuid",
 ]
 
@@ -2053,6 +2054,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a31142970826733df8241ef35dc040ef98c679ab14d7c3e54d827099b3acecaa"
 dependencies = [
  "serde",
+]
+
+[[package]]
+name = "totp-lite"
+version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b18009e8be74bfb2e2cc59a63d078d95c042858a1ca1128a294e1f9ce225148b"
+dependencies = [
+ "digest",
+ "hmac",
+ "sha-1",
+ "sha2",
 ]
 
 [[package]]

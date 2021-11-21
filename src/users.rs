@@ -1,4 +1,5 @@
 use std::fmt::{Display, Formatter};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use mongodb::bson::doc;
 use mongodb::bson::Bson;
@@ -13,6 +14,7 @@ use crate::errors::ErrorKind;
 use crate::errors::ErrorKind::EntityNotFound;
 use crate::jwt;
 use crate::jwt::ValidJwtToken;
+use totp_lite::{totp, Sha512};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(crate = "rocket::serde")]
@@ -44,6 +46,14 @@ impl Display for User {
             .field("last_name", &self.last_name)
             .finish()
     }
+}
+
+fn random_string(number_of_chars: usize) -> String {
+    let rng = thread_rng();
+    rng.sample_iter(Alphanumeric)
+        .take(number_of_chars)
+        .map(char::from)
+        .collect::<String>()
 }
 
 #[derive(Serialize, Deserialize)]
@@ -176,6 +186,48 @@ impl Display for ChangePasswordResponse {
     }
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(crate = "rocket::serde")]
+pub struct StartTotpRegistrationResult {
+    pub secret: String,
+    pub uri: String,
+    pub backup_codes: Vec<String>,
+}
+
+impl Display for StartTotpRegistrationResult {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("StartTotpRegistrationResult").finish()
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(crate = "rocket::serde")]
+pub struct ConfirmTotpResponse {
+    pub success: bool,
+}
+
+impl Display for ConfirmTotpResponse {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ConfirmTotpResponse")
+            .field("success", &self.success)
+            .finish()
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(crate = "rocket::serde")]
+pub struct ValidateTotpRequest {
+    pub totp_challenge: String,
+}
+
+impl Display for ValidateTotpRequest {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ValidateTotpRequest")
+            .field("totp_challenge", &self.totp_challenge)
+            .finish()
+    }
+}
+
 /// Creates the user collection for the database.
 fn user_collection(db: &Database) -> Collection<User> {
     db.collection::<User>("users")
@@ -194,12 +246,7 @@ fn create_id() -> String {
 /// ## Returns:
 /// The hashed value.
 fn hash_data(data: &str) -> Result<String, ErrorKind> {
-    let rng = thread_rng();
-    let random_salt = rng
-        .sample_iter(Alphanumeric)
-        .take(32)
-        .map(char::from)
-        .collect::<String>();
+    let random_salt = random_string(32);
     let config = argon2::Config::default();
 
     argon2::hash_encoded(data.as_bytes(), random_salt.as_bytes(), &config)
@@ -256,6 +303,20 @@ async fn get_by_id(user_id: &str, db: &Database) -> Result<User, ErrorKind> {
             message: format!("User with id {} not found", user_id),
         }),
     }
+}
+
+/// Update the user.
+async fn update_user(db_user: &User, db: &Database) -> Result<bool, ErrorKind> {
+    let collection = user_collection(db);
+    let update_result = collection
+        .replace_one(doc! {"user_id": &db_user.user_id}, db_user, None)
+        .await?;
+    if update_result.matched_count == 0 {
+        return Err(ErrorKind::EntityNotFound {
+            message: format!("User with id {} not found", db_user.user_id),
+        });
+    }
+    Ok(true)
 }
 
 /// Finds the user for the given id.
@@ -394,15 +455,8 @@ pub async fn update(
     db_user.last_name = update_user_request.last_name.clone();
     db_user.display_name = update_user_request.display_name.clone();
 
-    let collection = user_collection(db);
-    let update_result = collection
-        .replace_one(doc! {"user_id": &user.user_id}, &db_user, None)
-        .await?;
-    if update_result.matched_count == 0 {
-        return Err(ErrorKind::EntityNotFound {
-            message: format!("User with id {} not found", user.user_id),
-        });
-    }
+    update_user(&db_user, db).await?;
+
     Ok(GetUserResponse::from(&db_user))
 }
 
@@ -444,18 +498,87 @@ pub async fn change_password_for_user(
 
     db_user.password_hash = password_hash_and_salt;
 
-    let collection = user_collection(db);
-    let update_result = collection
-        .replace_one(doc! {"user_id": &user.user_id}, &db_user, None)
-        .await?;
-    if update_result.matched_count == 0 {
-        return Err(ErrorKind::EntityNotFound {
-            message: format!("User with id {} not found", user.user_id),
-        });
-    }
+    update_user(&db_user, db).await?;
 
     Ok(ChangePasswordResponse {
         success: true,
         error_message: None,
     })
+}
+
+/// Start the registration process for a TOTP token. The following items will be created:
+/// - an uri: For creating a QR code on the client side.
+/// - backup_codes: Backup codes that can be used instead of the totp.
+/// - secret: The shared secret.
+///
+/// ## Args:
+/// - user: The user to start the totp registration for.
+/// - db - The mongo db instance.
+///
+/// ## Returns:
+/// The StartTotpRegistrationResponse or an error.
+///
+pub async fn start_totp_registration_for_user(
+    user: &User,
+    db: &Database,
+) -> Result<StartTotpRegistrationResult, ErrorKind> {
+    trace!("start_totp_registration({})", user);
+    let secret = random_string(32);
+    let backup_codes = [
+        random_string(8),
+        random_string(8),
+        random_string(8),
+        random_string(8),
+        random_string(8),
+        random_string(8),
+    ]
+    .to_vec();
+    let label = format!("Linkje:{}", user.email_address);
+    let uri = format!("otpauth://totp/{}?secret={}&issuer=Linkje", label, secret);
+
+    // store the pending otp codes with the user.
+    let mut db_user = get_by_id(&user.user_id, db).await?;
+    db_user.pending_backup_codes = backup_codes.clone();
+    db_user.pending_otp_hash = Some(secret.clone());
+
+    update_user(&db_user, db).await?;
+
+    Ok(StartTotpRegistrationResult {
+        backup_codes,
+        uri,
+        secret,
+    })
+}
+
+pub async fn confirm_totp_code_for_user(
+    user: &User,
+    request: &ValidateTotpRequest,
+    db: &Database,
+) -> Result<ConfirmTotpResponse, ErrorKind> {
+    trace!("confirm_totp_code_for_user({}, _)", user);
+    if user.pending_otp_hash.is_none() || user.pending_backup_codes.len() == 0 {
+        return Err(ErrorKind::IllegalRequest {
+            message: String::from("No pending otp codes found"),
+        });
+    }
+
+    // Calculate a TOTP for the pending secret.
+    let seconds: u64 = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let totp_value = totp::<Sha512>(user.pending_otp_hash.as_ref().unwrap().as_bytes(), seconds);
+    if totp_value != request.totp_challenge {
+        return Err(ErrorKind::TotpChallengeInvalid);
+    }
+
+    let mut db_user = get_by_id(&user.user_id, db).await?;
+    db_user.otp_hash = db_user.pending_otp_hash.clone();
+    db_user.otp_backup_codes = db_user.pending_backup_codes.clone();
+    db_user.pending_otp_hash = None;
+    db_user.pending_backup_codes = Vec::new();
+
+    update_user(&db_user, db).await?;
+
+    Ok(ConfirmTotpResponse { success: true })
 }

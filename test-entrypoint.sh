@@ -9,4 +9,4 @@ do
   res=$?
 done
 
-make build
+make cicd-build

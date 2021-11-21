@@ -10,9 +10,15 @@ test:
 format:
 	cargo fmt --all
 
-build:
+check:
 	cargo fmt --all -- --check
-	cargo test
+	cargo check
+
+build: format
+	cargo build
+
+cicd-build: check test
+	cargo build --release
 
 run-tests-in-docker:
 	docker-compose -f docker-compose-test.yml --env-file test.env up --build --remove-orphans --exit-code-from unittests

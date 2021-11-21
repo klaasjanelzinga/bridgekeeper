@@ -1,135 +1,18 @@
-use fake::faker::name::en::Name;
-use fake::Fake;
-use jsonwebtoken::{decode, Algorithm, Validation};
-use rocket::form::validate::Len;
-use rocket::http::{Header, Status};
-use rocket::local::asynchronous::Client;
-
-use crate::common::fake_password;
-use linkje_api::jwt::JwtClaims;
-use linkje_api::users::{
-    ChangePasswordRequest, ChangePasswordResponse, ConfirmTotpResponse, CreateUserRequest,
-    GetUserResponse, LoginRequest, LoginResponse, StartTotpRegistrationResult, UpdateUserRequest,
-    ValidateTotpRequest,
-};
-use std::time::{SystemTime, UNIX_EPOCH};
-use totp_lite::{totp, Sha512};
-
 #[macro_use]
 extern crate log;
 
+use fake::faker::name::en::Name;
+use fake::Fake;
+use jsonwebtoken::{decode, Algorithm, Validation};
+use rocket::http::{Header, Status};
+
+use common::api_calls::{change_password, create_user, get_user, login, update_user};
+use linkje_api::jwt::JwtClaims;
+use linkje_api::users::{LoginRequest, UpdateUserRequest};
+
+use crate::common::fake_password;
+
 mod common;
-
-/// Create the user.
-async fn create_user(client: &Client, create_user_request: &CreateUserRequest) -> GetUserResponse {
-    let response = client
-        .post("/user")
-        .json(&create_user_request)
-        .dispatch()
-        .await;
-    assert_eq!(response.status(), Status::Created);
-
-    serde_json::from_str(&response.into_string().await.unwrap()).unwrap()
-}
-
-/// Update the user.
-async fn update_user(
-    client: &Client,
-    update_request: &UpdateUserRequest,
-    token: &str,
-) -> GetUserResponse {
-    let response = client
-        .put("/user")
-        .json(&update_request)
-        .header(Header::new("Authorization", format!("Bearer {}", token)))
-        .dispatch()
-        .await;
-    assert_eq!(response.status(), Status::Ok);
-
-    serde_json::from_str(&response.into_string().await.unwrap()).unwrap()
-}
-
-/// Change password for a user.
-async fn change_password(
-    client: &Client,
-    user_id: &str,
-    token: &str,
-    current_password: &str,
-    new_password: &str,
-) -> Result<ChangePasswordResponse, Status> {
-    let change_password_request = ChangePasswordRequest {
-        current_password: String::from(current_password),
-        new_password: String::from(new_password),
-    };
-
-    let response = client
-        .post(format!("/user/{}/change-password", user_id))
-        .json(&change_password_request)
-        .header(Header::new("Authorization", format!("Bearer {}", token)))
-        .dispatch()
-        .await;
-
-    if response.status() == Status::Ok {
-        Ok(serde_json::from_str(&response.into_string().await.unwrap()).unwrap())
-    } else {
-        Err(response.status())
-    }
-}
-
-/// Get user by the user_id.
-async fn get_user(client: &Client, user_id: &String, token: &str) -> GetUserResponse {
-    let response = client
-        .get(format!("/user/{}", user_id))
-        .header(Header::new("Authorization", format!("Bearer {}", token)))
-        .dispatch()
-        .await;
-    assert_eq!(response.status(), Status::Ok);
-    serde_json::from_str(&response.into_string().await.unwrap()).unwrap()
-}
-
-// Login the user.
-async fn login(client: &Client, create_user_request: &CreateUserRequest) -> LoginResponse {
-    let login_request = LoginRequest {
-        email_address: create_user_request.email_address.clone(),
-        password: create_user_request.new_password.clone(),
-    };
-    let response = client
-        .post("/user/login")
-        .json(&login_request)
-        .dispatch()
-        .await;
-    assert_eq!(response.status(), Status::Ok);
-    serde_json::from_str(&response.into_string().await.unwrap()).unwrap()
-}
-
-async fn start_totp(client: &Client, user_id: &str, token: &str) -> StartTotpRegistrationResult {
-    let response = client
-        .post(format!("/user/{}/start-totp-registration", user_id))
-        .header(Header::new("Authorization", format!("Bearer {}", token)))
-        .dispatch()
-        .await;
-    assert_eq!(response.status(), Status::Ok);
-    serde_json::from_str(&response.into_string().await.unwrap()).unwrap()
-}
-
-async fn confirm_totp(
-    client: &Client,
-    user_id: &str,
-    token: &str,
-    totp_challenge: &str,
-) -> ConfirmTotpResponse {
-    let validate_totp_request = ValidateTotpRequest {
-        totp_challenge: totp_challenge.to_string(),
-    };
-    let response = client
-        .post(format!("/user/{}/confirm-totp-registration", user_id))
-        .json(&validate_totp_request)
-        .header(Header::new("Authorization", format!("Bearer {}", token)))
-        .dispatch()
-        .await;
-    assert_eq!(response.status(), Status::Ok);
-    serde_json::from_str(&response.into_string().await.unwrap()).unwrap()
-}
 
 /// Test get user:
 /// - Create the user.
@@ -442,49 +325,6 @@ async fn test_change_password() {
             Status::BadRequest
         );
     }
-
-    ()
-}
-
-/// Test the enabling of the TOTP on a user account.
-/// - Create user and login.
-/// - Start TOTP registration.
-/// - Calculate a TOTP for the secret.
-/// - Confirm the TOTP.
-#[rocket::async_test]
-async fn test_totp_flow() {
-    let test_fixtures = common::setup().await;
-    let create_user_request = common::create_user_request();
-    let created_user = create_user(&test_fixtures.client, &create_user_request).await;
-    let login_response = login(&test_fixtures.client, &create_user_request).await;
-
-    let registration_response = start_totp(
-        &test_fixtures.client,
-        &created_user.user_id,
-        &login_response.token,
-    )
-    .await;
-
-    assert_eq!(registration_response.backup_codes.len(), 6);
-    assert_eq!(registration_response.backup_codes.get(0).len(), 8);
-
-    // Calculate a TOTP for the secret.
-    let seconds: u64 = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-    let totp_value = totp::<Sha512>(registration_response.secret.as_bytes(), seconds);
-
-    // Confirm the totp
-    let confirm_response = confirm_totp(
-        &test_fixtures.client,
-        &created_user.user_id,
-        &login_response.token,
-        &totp_value,
-    )
-    .await;
-
-    assert_eq!(confirm_response.success, true);
 
     ()
 }

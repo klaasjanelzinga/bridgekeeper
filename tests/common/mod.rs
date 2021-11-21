@@ -1,3 +1,5 @@
+pub mod api_calls;
+
 use std::env;
 use std::fmt::Display;
 
@@ -32,10 +34,11 @@ pub async fn setup<'a>() -> TestFixtures<'a> {
     LOG_INIT.call_once(|| {
         if env::var_os("RUST_LOG").is_none() {
             pretty_env_logger::formatted_timed_builder()
-                .filter_module("warp", LevelFilter::Info)
+                .filter_module("rocket", LevelFilter::Error)
                 .filter_module("linkje", LevelFilter::Trace)
                 .filter_module("test_users", LevelFilter::Trace)
-                .filter_level(LevelFilter::Debug)
+                .filter_module("test_totp", LevelFilter::Trace)
+                .filter_level(LevelFilter::Warn)
                 .init();
         } else {
             pretty_env_logger::init();

@@ -83,7 +83,7 @@ pub mod users_api {
         trace!("login_request({}, _)", login_request.email_address);
         let login_result = crate::users::login(&login_request, config, &db).await;
         match login_result {
-            Ok(login_token) => Ok(Json(LoginResponse { token: login_token })),
+            Ok(login_response) => Ok(Json(login_response)),
             Err(error_kind) => {
                 trace!("Could not log user in {}", error_kind);
                 Err(Status::Unauthorized)

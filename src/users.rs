@@ -149,6 +149,7 @@ impl Display for LoginRequest {
 #[serde(crate = "rocket::serde")]
 pub struct LoginResponse {
     pub token: String,
+    pub needs_otp: bool,
 }
 
 impl Display for LoginResponse {
@@ -377,7 +378,7 @@ pub async fn login(
     login_request: &LoginRequest,
     config: &Config<'_>,
     db: &Database,
-) -> Result<String, ErrorKind> {
+) -> Result<LoginResponse, ErrorKind> {
     trace!("login({}, _)", login_request);
     let user = get_by_email(&login_request.email_address, db).await?;
     trace!("Validating password of user {}", user.email_address);
@@ -385,9 +386,20 @@ pub async fn login(
     if !valid_password {
         return Err(ErrorKind::PasswordIncorrect);
     }
+
     let token = jwt::create_jwt_token(&user, &config.encoding_key)?;
+    if user.otp_hash.is_some() {
+        debug!("User is challenged with an otp.");
+        return Ok(LoginResponse {
+            needs_otp: true,
+            token,
+        });
+    }
     debug!("Successfully logged in user {}", user);
-    Ok(token)
+    Ok(LoginResponse {
+        needs_otp: false,
+        token,
+    })
 }
 
 /// Create a new user.
@@ -569,6 +581,7 @@ pub async fn confirm_totp_code_for_user(
         .as_secs();
     let totp_value = totp::<Sha512>(user.pending_otp_hash.as_ref().unwrap().as_bytes(), seconds);
     if totp_value != request.totp_challenge {
+        info!("Token value does not match");
         return Err(ErrorKind::TotpChallengeInvalid);
     }
 

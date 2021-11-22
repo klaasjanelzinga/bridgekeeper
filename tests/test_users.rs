@@ -6,7 +6,7 @@ use fake::Fake;
 use jsonwebtoken::{decode, Algorithm, Validation};
 use rocket::http::{Header, Status};
 
-use common::api_calls::{change_password, create_user, get_user, login, update_user};
+use common::api_calls::{change_password, create_user, get_user, login, update_user, create_and_login_user};
 use linkje_api::jwt::JwtClaims;
 use linkje_api::users::{LoginRequest, UpdateUserRequest};
 
@@ -23,24 +23,20 @@ async fn test_get_user() {
     let test_fixtures = common::setup().await;
     common::empty_users_collection(&test_fixtures.db).await;
 
-    let create_user_request = common::create_user_request();
-    let created_user = create_user(&test_fixtures.client, &create_user_request).await;
-    let token = login(&test_fixtures.client, &create_user_request)
-        .await
-        .token;
-    let existing_user_id = created_user.user_id;
-    let get_user = get_user(&test_fixtures.client, &existing_user_id, &token).await;
+    let login_data = create_and_login_user(&test_fixtures.client).await;
 
-    assert_eq!(create_user_request.email_address, get_user.email_address);
-    assert_eq!(create_user_request.first_name, get_user.first_name);
-    assert_eq!(create_user_request.last_name, get_user.last_name);
-    assert_eq!(create_user_request.display_name, get_user.display_name);
+    let get_user = get_user(&test_fixtures.client, &login_data.user_id, &login_data.token).await;
+
+    assert_eq!(login_data.email_address, get_user.email_address);
+    assert_eq!(login_data.first_name, get_user.first_name);
+    assert_eq!(login_data.last_name, get_user.last_name);
+    assert_eq!(login_data.display_name, get_user.display_name);
     assert!(get_user.user_id.len() > 1);
 
     let response = test_fixtures
         .client
-        .get(format!("/user/unknown-{}", existing_user_id))
-        .header(Header::new("Authorization", format!("Bearer {}", token)))
+        .get(format!("/user/unknown-{}", login_data.user_id))
+        .header(Header::new("Authorization", format!("Bearer {}", login_data.token)))
         .dispatch()
         .await;
     assert_eq!(Status::Forbidden, response.status()); // data mismatches token.
@@ -59,8 +55,9 @@ async fn test_create_user() {
 
     let create_user_request = common::create_user_request();
     let created_user = create_user(&test_fixtures.client, &create_user_request).await;
-    let token = login(&test_fixtures.client, &create_user_request)
+    let token = login(&test_fixtures.client, &create_user_request.email_address, &create_user_request.new_password)
         .await
+        .unwrap()
         .token;
 
     assert_eq!(
@@ -90,22 +87,17 @@ async fn test_update_user() {
     let test_fixtures = common::setup().await;
     common::empty_users_collection(&test_fixtures.db).await;
 
-    let create_user_request = common::create_user_request();
-    let created_user = create_user(&test_fixtures.client, &create_user_request).await;
-    let token = login(&test_fixtures.client, &create_user_request)
-        .await
-        .token;
-    let user_id = created_user.user_id;
+    let login_data = create_and_login_user(&test_fixtures.client).await;
 
     let update_user_request = UpdateUserRequest {
-        user_id: user_id.clone(),
-        first_name: format!("updated-{}", created_user.first_name),
-        last_name: format!("updated-{}", created_user.last_name),
-        email_address: format!("updated-{}", created_user.email_address),
+        user_id: login_data.user_id.clone(),
+        first_name: format!("updated-{}", login_data.first_name),
+        last_name: format!("updated-{}", login_data.last_name),
+        email_address: format!("updated-{}", login_data.email_address),
         display_name: Some(Name().fake()),
     };
 
-    let updated_user = update_user(&test_fixtures.client, &update_user_request, &token).await;
+    let updated_user = update_user(&test_fixtures.client, &update_user_request, &login_data.token).await;
     assert_eq!(updated_user.first_name, update_user_request.first_name);
     assert_eq!(updated_user.last_name, update_user_request.last_name);
     assert_eq!(
@@ -114,7 +106,7 @@ async fn test_update_user() {
     );
     assert_eq!(updated_user.display_name, update_user_request.display_name);
 
-    let get_user_response = get_user(&test_fixtures.client, &updated_user.user_id, &token).await;
+    let get_user_response = get_user(&test_fixtures.client, &updated_user.user_id, &login_data.token).await;
     assert_eq!(get_user_response.first_name, update_user_request.first_name);
     assert_eq!(get_user_response.last_name, update_user_request.last_name);
     assert_eq!(
@@ -139,41 +131,33 @@ async fn test_login_user() {
     let test_fixtures = common::setup().await;
     common::empty_users_collection(&test_fixtures.db).await;
 
-    let create_user_request = common::create_user_request();
-    create_user(&test_fixtures.client, &create_user_request).await;
+    let login_data = create_and_login_user(&test_fixtures.client).await;
 
-    let login_response = login(&test_fixtures.client, &create_user_request).await;
     let token_message = decode::<JwtClaims>(
-        &login_response.token,
+        &login_data.token,
         &test_fixtures.config.decoding_key,
         &Validation::new(Algorithm::HS256),
     );
     assert_eq!(
         token_message.unwrap().claims.email_address,
-        create_user_request.email_address
+        login_data.email_address
     );
 
-    let wrong_password = test_fixtures
-        .client
-        .post("/user/login")
-        .json(&LoginRequest {
-            email_address: create_user_request.email_address.clone(),
-            password: format!("wrong-{}", create_user_request.new_password.clone()),
-        })
-        .dispatch()
-        .await;
-    assert_eq!(wrong_password.status(), Status::Unauthorized);
+    let wrong_password = login(
+        &test_fixtures.client,
+        &login_data.email_address,
+        &format!("wrong-{}", login_data.password.clone())
+    ).await;
+    assert!(wrong_password.is_err());
+    assert_eq!(wrong_password.err().unwrap(), Status::Unauthorized);
 
-    let wrong_email_address = test_fixtures
-        .client
-        .post("/user/login")
-        .json(&LoginRequest {
-            email_address: format!("invalid-{}", create_user_request.email_address.clone()),
-            password: create_user_request.new_password.clone(),
-        })
-        .dispatch()
-        .await;
-    assert_eq!(wrong_email_address.status(), Status::Unauthorized);
+    let wrong_email = login(
+        &test_fixtures.client,
+        &format!("invalid-{}", login_data.email_address.clone()),
+        &login_data.password
+    ).await;
+    assert!(wrong_email.is_err());
+    assert_eq!(wrong_email.err().unwrap(), Status::Unauthorized);
 
     ()
 }
@@ -186,36 +170,30 @@ async fn test_authorization() {
     let test_fixtures = common::setup().await;
     common::empty_users_collection(&test_fixtures.db).await;
 
-    let create_first_user_request = common::create_user_request();
-    let created_first_user = create_user(&test_fixtures.client, &create_first_user_request).await;
-    let login_response_first_user = login(&test_fixtures.client, &create_first_user_request).await;
-
-    let create_second_user_request = common::create_user_request();
-    let created_second_user = create_user(&test_fixtures.client, &create_second_user_request).await;
-    let login_response_second_user =
-        login(&test_fixtures.client, &create_second_user_request).await;
+    let login_data_first = create_and_login_user(&test_fixtures.client).await;
+    let login_data_second = create_and_login_user(&test_fixtures.client).await;
 
     // get with own tokens
     get_user(
         &test_fixtures.client,
-        &created_first_user.user_id,
-        &login_response_first_user.token,
+        &login_data_first.user_id,
+        &login_data_first.token,
     )
     .await;
     get_user(
         &test_fixtures.client,
-        &created_second_user.user_id,
-        &login_response_second_user.token,
+        &login_data_second.user_id,
+        &login_data_second.token,
     )
     .await;
 
     // cross the tokens, should return 403.
     let response = test_fixtures
         .client
-        .get(format!("/user/{}", created_first_user.user_id))
+        .get(format!("/user/{}", login_data_first.user_id))
         .header(Header::new(
             "Authorization",
-            format!("Bearer {}", login_response_second_user.token),
+            format!("Bearer {}", login_data_second.token),
         ))
         .dispatch()
         .await;
@@ -237,20 +215,18 @@ async fn test_change_password() {
     let test_fixtures = common::setup().await;
     common::empty_users_collection(&test_fixtures.db).await;
 
-    let create_user_request = common::create_user_request();
-    let created_user = create_user(&test_fixtures.client, &create_user_request).await;
-
-    let login_response = login(&test_fixtures.client, &create_user_request).await;
+    let login_data = create_and_login_user(&test_fixtures.client).await;
     let new_password = fake_password();
 
     let change_password_response_result = change_password(
         &test_fixtures.client,
-        &created_user.user_id,
-        &login_response.token,
-        &create_user_request.new_password,
+        &login_data.user_id,
+        &login_data.token,
+        &login_data.password,
         &new_password,
     )
     .await;
+
     assert!(change_password_response_result.is_ok());
     let change_password_response = change_password_response_result.unwrap();
     assert_eq!(change_password_response.success, true);
@@ -258,8 +234,8 @@ async fn test_change_password() {
 
     // login with the old password -> NotAuthorized
     let login_request = LoginRequest {
-        email_address: create_user_request.email_address.clone(),
-        password: create_user_request.new_password.clone(),
+        email_address: login_data.email_address.clone(),
+        password: login_data.password.clone(),
     };
     let response = test_fixtures
         .client
@@ -271,7 +247,7 @@ async fn test_change_password() {
 
     // login with the new password -> Ok
     let login_request = LoginRequest {
-        email_address: create_user_request.email_address.clone(),
+        email_address: login_data.email_address.clone(),
         password: new_password.clone(),
     };
     let response = test_fixtures
@@ -285,9 +261,9 @@ async fn test_change_password() {
     // Change password with invalid current password.
     let change_password_response_result = change_password(
         &test_fixtures.client,
-        &created_user.user_id,
-        &login_response.token,
-        &create_user_request.new_password,
+        &login_data.user_id,
+        &login_data.token,
+        &login_data.password,
         &new_password,
     )
     .await;
@@ -309,8 +285,8 @@ async fn test_change_password() {
     for invalid_password in invalid_passwords {
         let change_password_response_result = change_password(
             &test_fixtures.client,
-            &created_user.user_id,
-            &login_response.token,
+            &login_data.user_id,
+            &login_data.token,
             &new_password,
             invalid_password,
         )

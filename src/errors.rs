@@ -20,6 +20,7 @@ pub enum ErrorKind {
     CannotEncodePassword,
     CannotCreateJwtToken,
     PasswordIncorrect,
+    OtpAuthorizationRequired,
     NoTokenFound,
     TokenInvalid,
     IllegalDataAccess {
@@ -42,6 +43,7 @@ impl Display for ErrorKind {
             ErrorKind::CannotVerifyPassword => write!(f, "CannotVerifyPassword"),
             ErrorKind::PasswordIncorrect => write!(f, "PasswordIncorrect"),
             ErrorKind::TotpChallengeInvalid => write!(f, "TotpChallengeInvalid"),
+            ErrorKind::OtpAuthorizationRequired => write!(f, "OtpAuthorizationRequired"),
             ErrorKind::CannotCreateJwtToken => write!(f, "CannotCreateJwtToken"),
             ErrorKind::NoTokenFound => write!(f, "NoTokenFound"),
             ErrorKind::TokenInvalid => write!(f, "TokenInvalid"),
@@ -81,6 +83,7 @@ impl From<ErrorKind> for Status {
             ErrorKind::CannotEncodePassword => Status::BadRequest,
             ErrorKind::PasswordIncorrect => Status::Unauthorized,
             ErrorKind::TotpChallengeInvalid => Status::Unauthorized,
+            ErrorKind::OtpAuthorizationRequired => Status::Forbidden,
             ErrorKind::CannotCreateJwtToken => Status::Unauthorized,
             ErrorKind::NoTokenFound => Status::Unauthorized,
             ErrorKind::TokenInvalid => Status::Unauthorized,

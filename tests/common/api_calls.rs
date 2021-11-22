@@ -5,9 +5,38 @@ use linkje_api::users::{
 };
 use rocket::http::{Header, Status};
 use rocket::local::asynchronous::Client;
-use std::clone::Clone;
+use crate::common::create_user_request;
+
+pub struct CreateAndLoginData {
+    pub user_id: String,
+    pub token: String,
+    pub email_address: String,
+    pub password: String,
+    pub first_name: String,
+    pub last_name: String,
+    pub display_name: Option<String>,
+}
+
+pub async fn create_and_login_user(client: &Client) -> CreateAndLoginData {
+    let create_user_request = create_user_request();
+    let created_user = create_user(client, &create_user_request).await;
+    let login_response = login(client, &create_user_request.email_address, &create_user_request.new_password).await.unwrap();
+
+    assert_eq!(login_response.needs_otp, false);
+
+    return CreateAndLoginData {
+        token: login_response.token,
+        user_id: created_user.user_id,
+        email_address: created_user.email_address,
+        password: create_user_request.new_password,
+        first_name: create_user_request.first_name,
+        last_name: create_user_request.last_name,
+        display_name: create_user_request.display_name
+    }
+}
 
 /// Create the user.
+#[allow(dead_code)]
 pub async fn create_user(
     client: &Client,
     create_user_request: &CreateUserRequest,
@@ -22,22 +51,27 @@ pub async fn create_user(
     serde_json::from_str(&response.into_string().await.unwrap()).unwrap()
 }
 
-// Login the user.
-pub async fn login(client: &Client, create_user_request: &CreateUserRequest) -> LoginResponse {
+/// Login the user.
+#[allow(dead_code)]
+pub async fn login(client: &Client, email_address: &str, password: &str) -> Result<LoginResponse, Status> {
     let login_request = LoginRequest {
-        email_address: create_user_request.email_address.clone(),
-        password: create_user_request.new_password.clone(),
+        email_address: String::from(email_address),
+        password: String::from(password),
     };
     let response = client
         .post("/user/login")
         .json(&login_request)
         .dispatch()
         .await;
+    if response.status() != Status::Ok {
+        return Err(response.status());
+    }
     assert_eq!(response.status(), Status::Ok);
-    serde_json::from_str(&response.into_string().await.unwrap()).unwrap()
+    Ok(serde_json::from_str(&response.into_string().await.unwrap()).unwrap())
 }
 
 /// Update the user.
+#[allow(dead_code)]
 pub async fn update_user(
     client: &Client,
     update_request: &UpdateUserRequest,
@@ -55,6 +89,7 @@ pub async fn update_user(
 }
 
 /// Change password for a user.
+#[allow(dead_code)]
 pub async fn change_password(
     client: &Client,
     user_id: &str,
@@ -82,6 +117,7 @@ pub async fn change_password(
 }
 
 /// Get user by the user_id.
+#[allow(dead_code)]
 pub async fn get_user(client: &Client, user_id: &String, token: &str) -> GetUserResponse {
     let response = client
         .get(format!("/user/{}", user_id))
@@ -92,6 +128,8 @@ pub async fn get_user(client: &Client, user_id: &String, token: &str) -> GetUser
     serde_json::from_str(&response.into_string().await.unwrap()).unwrap()
 }
 
+/// start the totp registration
+#[allow(dead_code)]
 pub async fn start_totp(
     client: &Client,
     user_id: &str,
@@ -106,6 +144,8 @@ pub async fn start_totp(
     serde_json::from_str(&response.into_string().await.unwrap()).unwrap()
 }
 
+/// confirm the totp code
+#[allow(dead_code)]
 pub async fn confirm_totp(
     client: &Client,
     user_id: &str,

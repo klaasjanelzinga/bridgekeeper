@@ -95,7 +95,7 @@ where
 }
 
 pub fn fake_password() -> String {
-    format!("Rr$-{}", Password(10..15).fake::<String>())
+    format!("Rr$3-{}", Password(10..15).fake::<String>())
 }
 
 pub fn create_user_request() -> CreateUserRequest {

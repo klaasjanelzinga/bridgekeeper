@@ -12,7 +12,7 @@ use rocket::{Build, Rocket};
 use crate::config::Config;
 use crate::users_api::{
     change_password, confirm_totp_registration, create_user, get_user, login,
-    start_totp_registration, update_user,
+    start_totp_registration, update_user, validate_totp
 };
 
 pub mod config;
@@ -32,9 +32,10 @@ pub mod users_api {
     use crate::jwt::ValidJwtToken;
     use crate::users::{
         change_password_for_user, confirm_totp_code_for_user, get_with_user_id,
-        start_totp_registration_for_user, ChangePasswordRequest, ChangePasswordResponse,
-        ConfirmTotpResponse, CreateUserRequest, GetUserResponse, LoginRequest, LoginResponse,
-        StartTotpRegistrationResult, UpdateUserRequest, ValidateTotpRequest,
+        start_totp_registration_for_user, validate_totp_for_user, ChangePasswordRequest,
+        ChangePasswordResponse, ConfirmTotpResponse, CreateUserRequest, GetUserResponse,
+        LoginRequest, LoginResponse, StartTotpRegistrationResult, UpdateUserRequest,
+        ValidateTotpRequest,
     };
 
     #[get("/user/<user_id>")]
@@ -137,9 +138,26 @@ pub mod users_api {
             user_id,
             valid_jwt_token
         );
-        let user = get_with_user_id(&valid_jwt_token, user_id, db).await?;
 
+        let user = get_with_user_id(&valid_jwt_token, user_id, db).await?;
         let result = confirm_totp_code_for_user(&user, &validate_totp_request, db).await?;
+
+        Ok(Json(result))
+    }
+
+    #[post("/user/<user_id>/validate-totp", data = "<validate_totp_request>")]
+    pub async fn validate_totp(
+        user_id: &str,
+        config: &State<Config<'_>>,
+        validate_totp_request: Json<ValidateTotpRequest>,
+        valid_jwt_token: ValidJwtToken,
+        db: &State<Database>,
+    ) -> Result<Json<LoginResponse>, Status> {
+        trace!("validate_totp({}, {}, _)", user_id, valid_jwt_token);
+
+        let user = get_with_user_id(&valid_jwt_token, user_id, db).await?;
+        let result = validate_totp_for_user(&user, &config, &validate_totp_request)?;
+
         Ok(Json(result))
     }
 }
@@ -158,6 +176,7 @@ pub fn rocket(db: &Database, config: &Config<'static>) -> Rocket<Build> {
                 change_password,
                 start_totp_registration,
                 confirm_totp_registration,
+                validate_totp,
             ],
         )
 }

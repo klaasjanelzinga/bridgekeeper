@@ -75,9 +75,16 @@ pub async fn empty_users_collection(db: &Database) {
             EMPTIED_USERS_COLLECTION_BARRIER = 1;
         }
 
+        let mut wait_counter = 0;
+
         while EMPTIED_USERS_COLLECTION_BARRIER == 0 {
-            warn!("Waiting on the emptying of the users collection");
-            sleep(Duration::from_millis(100)).await;
+            info!("Waiting on the emptying of the users collection");
+            sleep(Duration::from_millis(200)).await;
+            wait_counter += 1;
+
+            if wait_counter > 100 {
+                assert!(false)
+            }
         }
     }
 

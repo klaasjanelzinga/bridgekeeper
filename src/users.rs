@@ -346,6 +346,9 @@ pub async fn get_with_user_id(
             ),
         });
     }
+    if valid_jwt_token.jwt_claims.requires_otp_challenge {
+        return Err(ErrorKind::OtpAuthorizationRequired);
+    }
 
     get_by_id(user_id, db).await
 }
@@ -562,6 +565,37 @@ pub async fn start_totp_registration_for_user(
     })
 }
 
+fn validate_totp(otp_hash: &Option<String>, challenge: &str) -> Result<bool, ErrorKind> {
+    let possible_hash = otp_hash.clone();
+    possible_hash.map_or(
+        Err(ErrorKind::IllegalRequest {
+            message: String::from("No otp codes configured for user."),
+        }),
+        |otp| {
+            // Calculate a TOTP for the pending secret.
+            let seconds: u64 = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs();
+            let totp_value = totp::<Sha512>(otp.as_bytes(), seconds);
+            if totp_value != challenge {
+                info!("Token value does not match");
+                return Err(ErrorKind::TotpChallengeInvalid);
+            }
+            Ok(true)
+        },
+    )
+}
+
+/// Confirm the totp shared secret in the registration process.
+///
+/// ## Args:
+/// - user: The user to confirm the totp for.
+/// - request: The request containing the confirmation code.
+/// - db: Valid db mongo instance.
+///
+/// ## Returns:
+/// Either an error code or a success response.
 pub async fn confirm_totp_code_for_user(
     user: &User,
     request: &ValidateTotpRequest,
@@ -575,15 +609,7 @@ pub async fn confirm_totp_code_for_user(
     }
 
     // Calculate a TOTP for the pending secret.
-    let seconds: u64 = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-    let totp_value = totp::<Sha512>(user.pending_otp_hash.as_ref().unwrap().as_bytes(), seconds);
-    if totp_value != request.totp_challenge {
-        info!("Token value does not match");
-        return Err(ErrorKind::TotpChallengeInvalid);
-    }
+    validate_totp(&user.pending_otp_hash, &request.totp_challenge)?;
 
     let mut db_user = get_by_id(&user.user_id, db).await?;
     db_user.otp_hash = db_user.pending_otp_hash.clone();
@@ -594,4 +620,26 @@ pub async fn confirm_totp_code_for_user(
     update_user(&db_user, db).await?;
 
     Ok(ConfirmTotpResponse { success: true })
+}
+
+/// Validates a totp challenge.
+///
+/// ## Args:
+/// - user: The user to confirm the totp for.
+/// - config: The application configuration.
+/// - request: The request containing the confirmation code.
+///
+/// ## Returns:
+/// A new token for the user if the challenge succeeds, or an error otherwise.
+pub fn validate_totp_for_user(
+    user: &User,
+    config: &Config<'_>,
+    request: &ValidateTotpRequest,
+) -> Result<LoginResponse, ErrorKind> {
+    validate_totp(&user.otp_hash, &request.totp_challenge)?;
+    let token = jwt::create_otp_validated_jwt_token(&user, &config.encoding_key)?;
+    Ok(LoginResponse {
+        needs_otp: false,
+        token: token,
+    })
 }

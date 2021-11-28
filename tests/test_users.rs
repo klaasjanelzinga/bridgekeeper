@@ -4,9 +4,11 @@ extern crate log;
 use fake::faker::name::en::Name;
 use fake::Fake;
 use jsonwebtoken::{decode, Algorithm, Validation};
-use rocket::http::{Header, Status};
+use rocket::http::{Status};
 
-use common::api_calls::{change_password, create_user, get_user, login, update_user, create_and_login_user};
+use common::api_calls::{
+    change_password, create_and_login_user, create_user, get_user, login, update_user,
+};
 use linkje_api::jwt::JwtClaims;
 use linkje_api::users::{LoginRequest, UpdateUserRequest};
 
@@ -25,21 +27,28 @@ async fn test_get_user() {
 
     let login_data = create_and_login_user(&test_fixtures.client).await;
 
-    let get_user = get_user(&test_fixtures.client, &login_data.user_id, &login_data.token).await;
+    let get_user_response = get_user(
+        &test_fixtures.client,
+        &login_data.user_id,
+        &login_data.token,
+    )
+    .await;
+    assert!(get_user_response.is_ok());
+    let get_user_data = get_user_response.unwrap();
 
-    assert_eq!(login_data.email_address, get_user.email_address);
-    assert_eq!(login_data.first_name, get_user.first_name);
-    assert_eq!(login_data.last_name, get_user.last_name);
-    assert_eq!(login_data.display_name, get_user.display_name);
-    assert!(get_user.user_id.len() > 1);
+    assert_eq!(login_data.email_address, get_user_data.email_address);
+    assert_eq!(login_data.first_name, get_user_data.first_name);
+    assert_eq!(login_data.last_name, get_user_data.last_name);
+    assert_eq!(login_data.display_name, get_user_data.display_name);
+    assert!(get_user_data.user_id.len() > 1);
 
-    let response = test_fixtures
-        .client
-        .get(format!("/user/unknown-{}", login_data.user_id))
-        .header(Header::new("Authorization", format!("Bearer {}", login_data.token)))
-        .dispatch()
-        .await;
-    assert_eq!(Status::Forbidden, response.status()); // data mismatches token.
+    let illegal_response = get_user(
+        &test_fixtures.client,
+        &format!("unknown-{}", login_data.email_address),
+        &login_data.token)
+    .await;
+    assert!(illegal_response.is_err());
+    assert_eq!(illegal_response.err().unwrap(), Status::Forbidden);
 
     ()
 }
@@ -55,10 +64,14 @@ async fn test_create_user() {
 
     let create_user_request = common::create_user_request();
     let created_user = create_user(&test_fixtures.client, &create_user_request).await;
-    let token = login(&test_fixtures.client, &create_user_request.email_address, &create_user_request.new_password)
-        .await
-        .unwrap()
-        .token;
+    let token = login(
+        &test_fixtures.client,
+        &create_user_request.email_address,
+        &create_user_request.new_password,
+    )
+    .await
+    .unwrap()
+    .token;
 
     assert_eq!(
         create_user_request.email_address,
@@ -70,8 +83,9 @@ async fn test_create_user() {
     assert!(created_user.user_id.len() > 1);
 
     let get_result = get_user(&test_fixtures.client, &created_user.user_id, &token).await;
+    assert!(get_result.is_ok());
 
-    assert_eq!(created_user.email_address, get_result.email_address);
+    assert_eq!(created_user.email_address, get_result.unwrap().email_address);
 
     ()
 }
@@ -97,7 +111,12 @@ async fn test_update_user() {
         display_name: Some(Name().fake()),
     };
 
-    let updated_user = update_user(&test_fixtures.client, &update_user_request, &login_data.token).await;
+    let updated_user = update_user(
+        &test_fixtures.client,
+        &update_user_request,
+        &login_data.token,
+    )
+    .await;
     assert_eq!(updated_user.first_name, update_user_request.first_name);
     assert_eq!(updated_user.last_name, update_user_request.last_name);
     assert_eq!(
@@ -106,15 +125,22 @@ async fn test_update_user() {
     );
     assert_eq!(updated_user.display_name, update_user_request.display_name);
 
-    let get_user_response = get_user(&test_fixtures.client, &updated_user.user_id, &login_data.token).await;
-    assert_eq!(get_user_response.first_name, update_user_request.first_name);
-    assert_eq!(get_user_response.last_name, update_user_request.last_name);
+    let get_user_response = get_user(
+        &test_fixtures.client,
+        &updated_user.user_id,
+        &login_data.token,
+    )
+    .await;
+    assert!(get_user_response.is_ok());
+    let get_user = get_user_response.unwrap();
+    assert_eq!(get_user.first_name, update_user_request.first_name);
+    assert_eq!(get_user.last_name, update_user_request.last_name);
     assert_eq!(
-        get_user_response.email_address,
+        get_user.email_address,
         update_user_request.email_address
     );
     assert_eq!(
-        get_user_response.display_name,
+        get_user.display_name,
         update_user_request.display_name
     );
 
@@ -137,25 +163,26 @@ async fn test_login_user() {
         &login_data.token,
         &test_fixtures.config.decoding_key,
         &Validation::new(Algorithm::HS256),
-    );
-    assert_eq!(
-        token_message.unwrap().claims.email_address,
-        login_data.email_address
-    );
+    )
+    .unwrap();
+    assert_eq!(token_message.claims.email_address, login_data.email_address);
+    assert_eq!(token_message.claims.requires_otp_challenge, false);
 
     let wrong_password = login(
         &test_fixtures.client,
         &login_data.email_address,
-        &format!("wrong-{}", login_data.password.clone())
-    ).await;
+        &format!("wrong-{}", login_data.password.clone()),
+    )
+    .await;
     assert!(wrong_password.is_err());
     assert_eq!(wrong_password.err().unwrap(), Status::Unauthorized);
 
     let wrong_email = login(
         &test_fixtures.client,
         &format!("invalid-{}", login_data.email_address.clone()),
-        &login_data.password
-    ).await;
+        &login_data.password,
+    )
+    .await;
     assert!(wrong_email.is_err());
     assert_eq!(wrong_email.err().unwrap(), Status::Unauthorized);
 
@@ -174,30 +201,28 @@ async fn test_authorization() {
     let login_data_second = create_and_login_user(&test_fixtures.client).await;
 
     // get with own tokens
-    get_user(
+    let with_own_response_first = get_user(
         &test_fixtures.client,
         &login_data_first.user_id,
         &login_data_first.token,
     )
     .await;
-    get_user(
+    let with_own_response_second = get_user(
         &test_fixtures.client,
         &login_data_second.user_id,
         &login_data_second.token,
     )
     .await;
+    assert!(with_own_response_second.is_ok());
+    assert!(with_own_response_first.is_ok());
 
     // cross the tokens, should return 403.
-    let response = test_fixtures
-        .client
-        .get(format!("/user/{}", login_data_first.user_id))
-        .header(Header::new(
-            "Authorization",
-            format!("Bearer {}", login_data_second.token),
-        ))
-        .dispatch()
-        .await;
-    assert_eq!(response.status(), Status::Forbidden);
+    let crossed_response = get_user(
+        &test_fixtures.client,
+        &login_data_first.user_id,
+        &login_data_second.token
+    ).await;
+    assert_eq!(crossed_response.err().unwrap(), Status::Forbidden);
 
     ()
 }

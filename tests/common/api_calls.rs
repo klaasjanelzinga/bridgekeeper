@@ -128,14 +128,18 @@ pub async fn change_password(
 
 /// Get user by the user_id.
 #[allow(dead_code)]
-pub async fn get_user(client: &Client, user_id: &String, token: &str) -> Result<GetUserResponse, Status> {
+pub async fn get_user(
+    client: &Client,
+    user_id: &String,
+    token: &str,
+) -> Result<GetUserResponse, Status> {
     let response = client
         .get(format!("/user/{}", user_id))
         .header(Header::new("Authorization", format!("Bearer {}", token)))
         .dispatch()
         .await;
     if response.status() == Status::Ok {
-        return Ok(serde_json::from_str(&response.into_string().await.unwrap()).unwrap())
+        return Ok(serde_json::from_str(&response.into_string().await.unwrap()).unwrap());
     }
     Err(response.status())
 }

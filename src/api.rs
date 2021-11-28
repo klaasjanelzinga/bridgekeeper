@@ -12,7 +12,7 @@ use rocket::{Build, Rocket};
 use crate::config::Config;
 use crate::users_api::{
     change_password, confirm_totp_registration, create_user, get_user, login,
-    start_totp_registration, update_user, validate_totp
+    start_totp_registration, update_user, validate_totp,
 };
 
 pub mod config;

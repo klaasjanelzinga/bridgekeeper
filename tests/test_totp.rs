@@ -1,7 +1,9 @@
 #[macro_use]
 extern crate log;
 
-use crate::common::api_calls::{confirm_totp, create_and_login_user, start_totp, validate_totp, get_user};
+use crate::common::api_calls::{
+    confirm_totp, create_and_login_user, get_user, start_totp, validate_totp,
+};
 use common::api_calls::login;
 use jsonwebtoken::{decode, Algorithm, Validation};
 use linkje_api::jwt::JwtClaims;
@@ -86,13 +88,23 @@ async fn test_totp_flow() {
     assert_eq!(token_second_login.claims.otp_is_validated, false);
 
     // Token cannot be used anywhere else since an otp challenge is required.
-    let failing_api_call = get_user(&test_fixtures.client, &login_data.user_id, &second_login.token).await;
+    let failing_api_call = get_user(
+        &test_fixtures.client,
+        &login_data.user_id,
+        &second_login.token,
+    )
+    .await;
     assert!(failing_api_call.is_err());
     assert_eq!(failing_api_call.err().unwrap(), Status::Forbidden);
 
     // validate the otp
-    let validated_totp_response =
-        validate_totp(&test_fixtures.client, &login_data.user_id, &login_data.token, &totp_value).await;
+    let validated_totp_response = validate_totp(
+        &test_fixtures.client,
+        &login_data.user_id,
+        &login_data.token,
+        &totp_value,
+    )
+    .await;
     assert_ne!(validated_totp_response.token, second_login.token);
 
     // dissect the token.
@@ -102,10 +114,18 @@ async fn test_totp_flow() {
         &Validation::new(Algorithm::HS256),
     )
     .unwrap();
-    assert_eq!(token_otp_validated_login.claims.requires_otp_challenge, false);
+    assert_eq!(
+        token_otp_validated_login.claims.requires_otp_challenge,
+        false
+    );
     assert_eq!(token_otp_validated_login.claims.otp_is_validated, true);
 
-    let api_call = get_user(&test_fixtures.client, &login_data.user_id, &validated_totp_response.token).await;
+    let api_call = get_user(
+        &test_fixtures.client,
+        &login_data.user_id,
+        &validated_totp_response.token,
+    )
+    .await;
     assert!(api_call.is_ok());
 
     ()

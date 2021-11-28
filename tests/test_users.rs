@@ -4,7 +4,7 @@ extern crate log;
 use fake::faker::name::en::Name;
 use fake::Fake;
 use jsonwebtoken::{decode, Algorithm, Validation};
-use rocket::http::{Status};
+use rocket::http::Status;
 
 use common::api_calls::{
     change_password, create_and_login_user, create_user, get_user, login, update_user,
@@ -45,7 +45,8 @@ async fn test_get_user() {
     let illegal_response = get_user(
         &test_fixtures.client,
         &format!("unknown-{}", login_data.email_address),
-        &login_data.token)
+        &login_data.token,
+    )
     .await;
     assert!(illegal_response.is_err());
     assert_eq!(illegal_response.err().unwrap(), Status::Forbidden);
@@ -85,7 +86,10 @@ async fn test_create_user() {
     let get_result = get_user(&test_fixtures.client, &created_user.user_id, &token).await;
     assert!(get_result.is_ok());
 
-    assert_eq!(created_user.email_address, get_result.unwrap().email_address);
+    assert_eq!(
+        created_user.email_address,
+        get_result.unwrap().email_address
+    );
 
     ()
 }
@@ -135,14 +139,8 @@ async fn test_update_user() {
     let get_user = get_user_response.unwrap();
     assert_eq!(get_user.first_name, update_user_request.first_name);
     assert_eq!(get_user.last_name, update_user_request.last_name);
-    assert_eq!(
-        get_user.email_address,
-        update_user_request.email_address
-    );
-    assert_eq!(
-        get_user.display_name,
-        update_user_request.display_name
-    );
+    assert_eq!(get_user.email_address, update_user_request.email_address);
+    assert_eq!(get_user.display_name, update_user_request.display_name);
 
     ()
 }
@@ -220,8 +218,9 @@ async fn test_authorization() {
     let crossed_response = get_user(
         &test_fixtures.client,
         &login_data_first.user_id,
-        &login_data_second.token
-    ).await;
+        &login_data_second.token,
+    )
+    .await;
     assert_eq!(crossed_response.err().unwrap(), Status::Forbidden);
 
     ()

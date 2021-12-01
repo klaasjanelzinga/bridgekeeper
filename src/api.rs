@@ -10,7 +10,7 @@ use mongodb::Database;
 use rocket::{Build, Rocket};
 
 use crate::config::Config;
-use crate::users_api::{
+use crate::user_api::{
     change_password, confirm_totp_registration, create_user, get_user, login,
     start_totp_registration, update_user, validate_totp,
 };
@@ -18,10 +18,11 @@ use crate::users_api::{
 pub mod config;
 pub mod errors;
 pub mod jwt;
+pub mod user;
 pub mod user_totp;
-pub mod users;
+mod util;
 
-pub mod users_api {
+pub mod user_api {
     use mongodb::Database;
     use rocket::http::Status;
     use rocket::response::status;
@@ -30,12 +31,13 @@ pub mod users_api {
 
     use crate::config::Config;
     use crate::jwt::ValidJwtToken;
-    use crate::users::{
-        change_password_for_user, confirm_totp_code_for_user, get_with_user_id,
-        start_totp_registration_for_user, validate_totp_for_user, ChangePasswordRequest,
-        ChangePasswordResponse, ConfirmTotpResponse, CreateUserRequest, GetUserResponse,
-        LoginRequest, LoginResponse, StartTotpRegistrationResult, UpdateUserRequest,
-        ValidateTotpRequest,
+    use crate::user::{
+        change_password_for_user, get_with_user_id, ChangePasswordRequest, ChangePasswordResponse,
+        CreateUserRequest, GetUserResponse, LoginRequest, LoginResponse, UpdateUserRequest,
+    };
+    use crate::user_totp::{
+        confirm_totp_code_for_user, start_totp_registration_for_user, validate_totp_for_user,
+        ConfirmTotpResponse, StartTotpRegistrationResult, ValidateTotpRequest,
     };
 
     #[get("/user/<user_id>")]
@@ -61,7 +63,7 @@ pub mod users_api {
             valid_jwt_token
         );
         let user = get_with_user_id(&valid_jwt_token, &update_request.user_id, db).await?;
-        let update_response = crate::users::update(&user, &update_request, &db).await?;
+        let update_response = crate::user::update(&user, &update_request, &db).await?;
         Ok(Json(update_response))
     }
 
@@ -71,7 +73,7 @@ pub mod users_api {
         db: &State<Database>,
     ) -> Result<status::Custom<Json<GetUserResponse>>, Status> {
         trace!("create_user({}, _)", create_request.email_address);
-        let create_response = crate::users::create(&create_request, &db).await?;
+        let create_response = crate::user::create(&create_request, &db).await?;
         Ok(status::Custom(Status::Created, Json(create_response)))
     }
 
@@ -82,7 +84,7 @@ pub mod users_api {
         db: &State<Database>,
     ) -> Result<Json<LoginResponse>, Status> {
         trace!("login_request({}, _)", login_request.email_address);
-        let login_result = crate::users::login(&login_request, config, &db).await;
+        let login_result = crate::user::login(&login_request, config, &db).await;
         match login_result {
             Ok(login_response) => Ok(Json(login_response)),
             Err(error_kind) => {

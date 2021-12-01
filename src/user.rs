@@ -1,20 +1,16 @@
 use std::fmt::{Display, Formatter};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use mongodb::bson::doc;
 use mongodb::bson::Bson;
 use mongodb::{Collection, Database};
-use rand::distributions::Alphanumeric;
-use rand::{thread_rng, Rng};
 use rocket::serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 use crate::config::Config;
 use crate::errors::ErrorKind;
 use crate::errors::ErrorKind::EntityNotFound;
 use crate::jwt;
 use crate::jwt::ValidJwtToken;
-use totp_lite::{totp, Sha512};
+use crate::util::{create_id, random_string};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(crate = "rocket::serde")]
@@ -26,13 +22,15 @@ pub struct User {
     pub email_address: String,
     pub first_name: String,
     pub last_name: String,
-
     pub display_name: Option<String>,
+
     pub password_hash: String,
+
     pub otp_hash: Option<String>,
     pub otp_backup_codes: Vec<String>,
     pub pending_otp_hash: Option<String>,
     pub pending_backup_codes: Vec<String>,
+
     pub is_approved: bool,
 }
 
@@ -46,14 +44,6 @@ impl Display for User {
             .field("last_name", &self.last_name)
             .finish()
     }
-}
-
-fn random_string(number_of_chars: usize) -> String {
-    let rng = thread_rng();
-    rng.sample_iter(Alphanumeric)
-        .take(number_of_chars)
-        .map(char::from)
-        .collect::<String>()
 }
 
 #[derive(Serialize, Deserialize)]
@@ -187,56 +177,9 @@ impl Display for ChangePasswordResponse {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(crate = "rocket::serde")]
-pub struct StartTotpRegistrationResult {
-    pub secret: String,
-    pub uri: String,
-    pub backup_codes: Vec<String>,
-}
-
-impl Display for StartTotpRegistrationResult {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("StartTotpRegistrationResult").finish()
-    }
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(crate = "rocket::serde")]
-pub struct ConfirmTotpResponse {
-    pub success: bool,
-}
-
-impl Display for ConfirmTotpResponse {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ConfirmTotpResponse")
-            .field("success", &self.success)
-            .finish()
-    }
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(crate = "rocket::serde")]
-pub struct ValidateTotpRequest {
-    pub totp_challenge: String,
-}
-
-impl Display for ValidateTotpRequest {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ValidateTotpRequest")
-            .field("totp_challenge", &self.totp_challenge)
-            .finish()
-    }
-}
-
 /// Creates the user collection for the database.
 fn user_collection(db: &Database) -> Collection<User> {
     db.collection::<User>("users")
-}
-
-/// Creates a new abstract id for entities.
-fn create_id() -> String {
-    Uuid::new_v4().to_hyphenated().to_string()
 }
 
 /// Hash data with a random salt.
@@ -293,7 +236,7 @@ fn verify_password(password: &str) -> Result<(), ErrorKind> {
 }
 
 /// Fetches the user entity by user_id. Returns EntityNotFound if not found.
-async fn get_by_id(user_id: &str, db: &Database) -> Result<User, ErrorKind> {
+pub async fn get_by_id(user_id: &str, db: &Database) -> Result<User, ErrorKind> {
     let collection = user_collection(db);
     let optional_user = collection
         .find_one(doc! {"user_id": &user_id}, None)
@@ -307,7 +250,7 @@ async fn get_by_id(user_id: &str, db: &Database) -> Result<User, ErrorKind> {
 }
 
 /// Update the user.
-async fn update_user(db_user: &User, db: &Database) -> Result<bool, ErrorKind> {
+pub async fn update_user(db_user: &User, db: &Database) -> Result<bool, ErrorKind> {
     let collection = user_collection(db);
     let update_result = collection
         .replace_one(doc! {"user_id": &db_user.user_id}, db_user, None)
@@ -320,17 +263,17 @@ async fn update_user(db_user: &User, db: &Database) -> Result<bool, ErrorKind> {
     Ok(true)
 }
 
-/// Finds the user for the given id.
+/// Finds the user for the given id and token.
 ///
 /// ## Args:
 /// - valid_jwt_token: A valid jwt token. The user id will be validated from the token to the second arg.
-/// - id: The user_id, must match token value..
+/// - user_id: The user_id, must match token value..
 /// - db: The mongo database instance.
 ///
 /// ## Returns:
 /// User with the given email address or an Error.
 /// - EntityNotFound - No user exists for the email address.
-/// - IllegalDataAccess - The user_id in the token does not match the second argument.
+/// - IllegalDataAccess - The user_id in the token does not match the user_id argument.
 /// - MongoDbError - Something is off with mongo.
 pub async fn get_with_user_id(
     valid_jwt_token: &ValidJwtToken,
@@ -518,128 +461,5 @@ pub async fn change_password_for_user(
     Ok(ChangePasswordResponse {
         success: true,
         error_message: None,
-    })
-}
-
-/// Start the registration process for a TOTP token. The following items will be created:
-/// - an uri: For creating a QR code on the client side.
-/// - backup_codes: Backup codes that can be used instead of the totp.
-/// - secret: The shared secret.
-///
-/// ## Args:
-/// - user: The user to start the totp registration for.
-/// - db - The mongo db instance.
-///
-/// ## Returns:
-/// The StartTotpRegistrationResponse or an error.
-///
-pub async fn start_totp_registration_for_user(
-    user: &User,
-    db: &Database,
-) -> Result<StartTotpRegistrationResult, ErrorKind> {
-    trace!("start_totp_registration({})", user);
-    let secret = random_string(32);
-    let backup_codes = [
-        random_string(8),
-        random_string(8),
-        random_string(8),
-        random_string(8),
-        random_string(8),
-        random_string(8),
-    ]
-    .to_vec();
-    let label = format!("Linkje:{}", user.email_address);
-    let uri = format!("otpauth://totp/{}?secret={}&issuer=Linkje", label, secret);
-
-    // store the pending otp codes with the user.
-    let mut db_user = get_by_id(&user.user_id, db).await?;
-    db_user.pending_backup_codes = backup_codes.clone();
-    db_user.pending_otp_hash = Some(secret.clone());
-
-    update_user(&db_user, db).await?;
-
-    Ok(StartTotpRegistrationResult {
-        backup_codes,
-        uri,
-        secret,
-    })
-}
-
-fn validate_totp(otp_hash: &Option<String>, challenge: &str) -> Result<bool, ErrorKind> {
-    let possible_hash = otp_hash.clone();
-    possible_hash.map_or(
-        Err(ErrorKind::IllegalRequest {
-            message: String::from("No otp codes configured for user."),
-        }),
-        |otp| {
-            // Calculate a TOTP for the pending secret.
-            let seconds: u64 = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_secs();
-            let totp_value = totp::<Sha512>(otp.as_bytes(), seconds);
-            if totp_value != challenge {
-                info!("Token value does not match");
-                return Err(ErrorKind::TotpChallengeInvalid);
-            }
-            Ok(true)
-        },
-    )
-}
-
-/// Confirm the totp shared secret in the registration process.
-///
-/// ## Args:
-/// - user: The user to confirm the totp for.
-/// - request: The request containing the confirmation code.
-/// - db: Valid db mongo instance.
-///
-/// ## Returns:
-/// Either an error code or a success response.
-pub async fn confirm_totp_code_for_user(
-    user: &User,
-    request: &ValidateTotpRequest,
-    db: &Database,
-) -> Result<ConfirmTotpResponse, ErrorKind> {
-    trace!("confirm_totp_code_for_user({}, _)", user);
-    if user.pending_otp_hash.is_none() || user.pending_backup_codes.len() == 0 {
-        return Err(ErrorKind::IllegalRequest {
-            message: String::from("No pending otp codes found"),
-        });
-    }
-
-    // Calculate a TOTP for the pending secret.
-    validate_totp(&user.pending_otp_hash, &request.totp_challenge)?;
-
-    let mut db_user = get_by_id(&user.user_id, db).await?;
-    db_user.otp_hash = db_user.pending_otp_hash.clone();
-    db_user.otp_backup_codes = db_user.pending_backup_codes.clone();
-    db_user.pending_otp_hash = None;
-    db_user.pending_backup_codes = Vec::new();
-
-    update_user(&db_user, db).await?;
-
-    Ok(ConfirmTotpResponse { success: true })
-}
-
-/// Validates a totp challenge.
-///
-/// ## Args:
-/// - user: The user to confirm the totp for.
-/// - config: The application configuration.
-/// - request: The request containing the confirmation code.
-///
-/// ## Returns:
-/// A new token for the user if the challenge succeeds, or an error otherwise.
-pub fn validate_totp_for_user(
-    user: &User,
-    config: &Config<'_>,
-    request: &ValidateTotpRequest,
-) -> Result<LoginResponse, ErrorKind> {
-    validate_totp(&user.otp_hash, &request.totp_challenge)?;
-    let token = jwt::create_otp_validated_jwt_token(&user, &config.encoding_key)?;
-    Ok(LoginResponse {
-        needs_otp: false,
-        token: token,
     })
 }

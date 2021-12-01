@@ -1,8 +1,10 @@
 use crate::common::create_user_request;
-use linkje_api::users::{
-    ChangePasswordRequest, ChangePasswordResponse, ConfirmTotpResponse, CreateUserRequest,
-    GetUserResponse, LoginRequest, LoginResponse, StartTotpRegistrationResult, UpdateUserRequest,
-    ValidateTotpRequest,
+use linkje_api::user::{
+    ChangePasswordRequest, ChangePasswordResponse, CreateUserRequest, GetUserResponse,
+    LoginRequest, LoginResponse, UpdateUserRequest,
+};
+use linkje_api::user_totp::{
+    ConfirmTotpResponse, StartTotpRegistrationResult, ValidateTotpRequest,
 };
 use rocket::http::{Header, Status};
 use rocket::local::asynchronous::Client;

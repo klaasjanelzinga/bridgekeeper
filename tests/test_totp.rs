@@ -7,7 +7,7 @@ use crate::common::api_calls::{
 use common::api_calls::login;
 use jsonwebtoken::{decode, Algorithm, Validation};
 use linkje_api::jwt::JwtClaims;
-use linkje_api::users::ValidateTotpRequest;
+use linkje_api::user_totp::ValidateTotpRequest;
 use rocket::http::{Header, Status};
 use std::time::{SystemTime, UNIX_EPOCH};
 use totp_lite::{totp, Sha512};

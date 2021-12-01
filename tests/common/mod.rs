@@ -10,7 +10,7 @@ use fake::faker::internet::en::{Password, SafeEmail};
 use fake::faker::name::en::{FirstName, LastName, Name};
 use fake::Fake;
 use linkje_api::config::Config;
-use linkje_api::users::{CreateUserRequest, User};
+use linkje_api::user::{CreateUserRequest, User};
 use rocket::local::asynchronous::Client;
 use std::sync::Once;
 use std::time::Duration;

@@ -9,7 +9,7 @@ use rocket::serde::{Deserialize, Serialize};
 use crate::config::Config;
 use crate::errors::ErrorKind;
 use crate::errors::ErrorKind::TokenInvalid;
-use crate::users::User;
+use crate::user::User;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct JwtClaims {

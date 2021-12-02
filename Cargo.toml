@@ -1,14 +1,14 @@
 [package]
-name = "linkje-api"
+name = "bridgekeeper"
 version = "0.1.0"
 edition = "2018"
 
 [lib]
-name = "linkje_api"
+name = "bridgekeeper_api"
 path = "src/api.rs"
 
 [[bin]]
-name = "linkje"
+name = "bridgekeeper"
 path = "src/main.rs"
 
 [dependencies]

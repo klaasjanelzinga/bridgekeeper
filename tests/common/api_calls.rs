@@ -1,9 +1,9 @@
 use crate::common::create_user_request;
-use linkje_api::user::{
+use bridgekeeper_api::user::{
     ChangePasswordRequest, ChangePasswordResponse, CreateUserRequest, GetUserResponse,
     LoginRequest, LoginResponse, UpdateUserRequest,
 };
-use linkje_api::user_totp::{
+use bridgekeeper_api::user_totp::{
     ConfirmTotpResponse, StartTotpRegistrationResult, ValidateTotpRequest,
 };
 use rocket::http::{Header, Status};

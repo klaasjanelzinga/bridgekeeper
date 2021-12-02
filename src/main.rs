@@ -12,18 +12,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
     if var_os("RUST_LOG").is_none() {
         formatted_timed_builder()
             .filter_module("warp", LevelFilter::Info)
-            .filter_module("linkje_api", LevelFilter::Trace)
+            .filter_module("bridgekeeper", LevelFilter::Trace)
             .filter_level(LevelFilter::Info)
             .init();
     } else {
         init()
     }
 
-    let config = linkje_api::config::Config::from_environment();
-    let db = linkje_api::create_mongo_connection(&config).await?;
+    let config = bridgekeeper_api::config::Config::from_environment();
+    let db = bridgekeeper_api::create_mongo_connection(&config).await?;
 
     info!("Starting server on port 8000");
-    linkje_api::rocket(&db, &config).launch().await?;
+    bridgekeeper_api::rocket(&db, &config).launch().await?;
 
     Ok(())
 }

@@ -9,8 +9,8 @@ use rocket::http::Status;
 use common::api_calls::{
     change_password, create_and_login_user, create_user, get_user, login, update_user,
 };
-use linkje_api::jwt::JwtClaims;
-use linkje_api::user::{LoginRequest, UpdateUserRequest};
+use bridgekeeper_api::jwt::JwtClaims;
+use bridgekeeper_api::user::{LoginRequest, UpdateUserRequest};
 
 use crate::common::fake_password;
 

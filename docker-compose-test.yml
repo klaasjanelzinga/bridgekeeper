@@ -11,7 +11,7 @@ services:
       - etc/test.env
     volumes:
       - .:/usr/src/app
-    command: ./entrypoint-test.sh
+    command: ./docker-files/build/entrypoint-test.sh
 
   mongo:
     build:

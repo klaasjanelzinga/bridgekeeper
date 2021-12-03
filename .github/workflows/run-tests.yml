@@ -14,4 +14,4 @@ jobs:
           TEST_ENV_KEY: ${{secrets.TEST_ENV_KEY}}
         run: scripts/decrypt-test-env.sh
       - name: Verify the build
-        run: make run-tests-in-docker
+        run: make run-tests-in-docker-cicd

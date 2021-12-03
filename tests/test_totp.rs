@@ -4,10 +4,10 @@ extern crate log;
 use crate::common::api_calls::{
     confirm_totp, create_and_login_user, get_user, start_totp, validate_totp,
 };
-use common::api_calls::login;
-use jsonwebtoken::{decode, Algorithm, Validation};
 use bridgekeeper_api::jwt::JwtClaims;
 use bridgekeeper_api::user_totp::ValidateTotpRequest;
+use common::api_calls::login;
+use jsonwebtoken::{decode, Algorithm, Validation};
 use rocket::http::{Header, Status};
 use std::time::{SystemTime, UNIX_EPOCH};
 use totp_lite::{totp, Sha512};

@@ -6,11 +6,11 @@ use std::fmt::Display;
 use log::LevelFilter;
 use mongodb::Database;
 
+use bridgekeeper_api::config::Config;
+use bridgekeeper_api::user::{CreateUserRequest, User};
 use fake::faker::internet::en::{Password, SafeEmail};
 use fake::faker::name::en::{FirstName, LastName, Name};
 use fake::Fake;
-use bridgekeeper_api::config::Config;
-use bridgekeeper_api::user::{CreateUserRequest, User};
 use rocket::local::asynchronous::Client;
 use std::sync::Once;
 use std::time::Duration;
@@ -53,7 +53,9 @@ pub async fn setup<'a>() -> TestFixtures<'a> {
     set_env_var_if_not_set("JWT_TOKEN_SECRET", "linkje-test");
 
     let config = bridgekeeper_api::config::Config::from_environment();
-    let db = bridgekeeper_api::create_mongo_connection(&config).await.unwrap();
+    let db = bridgekeeper_api::create_mongo_connection(&config)
+        .await
+        .unwrap();
 
     let client = Client::tracked(bridgekeeper_api::rocket(&db.clone(), &config.clone()))
         .await

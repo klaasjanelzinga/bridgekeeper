@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  api:
+    image: ghcr.io/klaasjanelzinga/bridgekeeper/api:${VERSION}
+    ports:
+      - "127.0.0.1:9010:5001"
+    env_file:
+      - etc/production.env
+
+networks:
+  default:
+    name: infranetwork
+    external: true

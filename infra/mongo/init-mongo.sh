@@ -9,7 +9,7 @@ mongo -- "$MONGO_INITDB_DATABASE" <<EOF
     var password = '$MONGO_PASS';
     var database = '$MONGO_DB';
 
-    use linkje
+    use bridgekeeper
     db.createUser({user: user, pwd: password, roles: ["readWrite"]});
 
     db.grantRolesToUser(
@@ -23,7 +23,7 @@ mongo -- "$MONGO_INITDB_DATABASE" <<EOF
     var password = '$MONGO_TEST_PASS';
     var database = '$MONGO_TEST_DB';
 
-    use linkje-test
+    use bridgekeeper-test
     db.createUser({user: user, pwd: password, roles: ["readWrite"]});
 
     db.grantRolesToUser(

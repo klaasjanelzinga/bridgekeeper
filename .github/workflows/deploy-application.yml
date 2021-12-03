@@ -1,0 +1,25 @@
+name: Deploy application
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  build:
+    name: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+      - name: Decrypt the test env file
+        env:
+          TEST_ENV_KEY: ${{secrets.TEST_ENV_KEY}}
+        run: scripts/decrypt-test-env.sh
+      - name: Verify and build the build
+        run: make run-tests-in-docker run-build-in-docker
+      - name: Login docker
+        env:
+          SUPER_SECRET: ${{secrets.GH_PACKAGES_PAT}}
+        run: echo $SUPER_SECRET | docker login https://ghcr.io -u klaasjanelzinga@me.com --password-stdin
+      - name: Build and push the docker image
+        run: scripts/build-docker-images.sh --version "${GITHUB_REF#refs/*/}"

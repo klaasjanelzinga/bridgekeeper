@@ -4,21 +4,21 @@ services:
   unittests:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: docker-files/build/Dockerfile
     depends_on:
       - mongo
     env_file:
-      - test.env
+      - etc/test.env
     volumes:
       - .:/usr/src/app
-    command: ./test-entrypoint.sh
+    command: ./entrypoint-test.sh
 
   mongo:
     build:
       context: infra/mongo
       dockerfile: Dockerfile
     env_file:
-      - test.env
+      - etc/test.env
     environment:
       MONGO_INITDB_ROOT_USERNAME: $MONGO_ROOT_USER
       MONGO_INITDB_ROOT_PASSWORD: $MONGO_ROOT_PASS

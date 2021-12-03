@@ -31,7 +31,7 @@ run-tests-in-docker-cicd:
 
 run-build-in-docker:
 	docker build -t bridgekeeper-build --file docker-files/build/Dockerfile .
-	docker run -v `pwd`:/usr/src/app -it bridgekeeper-build ./docker-files/build/entrypoint-build.sh
+	docker run -v `pwd`:/usr/src/app bridgekeeper-build ./docker-files/build/entrypoint-build.sh
 
 scp-to-host:
 	scp Makefile docker-compose-live.yml scp://test.n-kj.nl//usr/bridgekeeper

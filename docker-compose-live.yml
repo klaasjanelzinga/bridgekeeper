@@ -4,7 +4,7 @@ services:
   api:
     image: ghcr.io/klaasjanelzinga/bridgekeeper/api:${VERSION}
     ports:
-      - "127.0.0.1:9010:5001"
+      - "127.0.0.1:9010:8000"
     env_file:
       - etc/production.env
 

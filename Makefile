@@ -25,8 +25,9 @@ run-tests-in-docker:
 	docker-compose -f docker-compose-test.yml --env-file etc/test.env down --remove-orphans
 
 run-tests-in-docker-cicd:
-	docker-compose -f docker-compose-test.yml --env-file scripts/test.env up --build --remove-orphans --exit-code-from unittests
-	docker-compose -f docker-compose-test.yml --env-file scripts/test.env down --remove-orphans
+	# test.env will be decrypted in an earlier step.
+	docker-compose -f docker-compose-test.yml --env-file test.env up --build --remove-orphans --exit-code-from unittests
+	docker-compose -f docker-compose-test.yml --env-file test.env down --remove-orphans
 
 run-build-in-docker:
 	docker build -t bridgekeeper-build --file docker-files/build/Dockerfile .

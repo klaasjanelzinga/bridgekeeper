@@ -37,3 +37,10 @@ scp-to-host:
 	scp Makefile docker-compose-live.yml scp://test.n-kj.nl//usr/bridgekeeper
 	scp -r etc/production.env scp://test.n-kj.nl//usr/bridgekeeper/etc
 
+live-up:
+	docker-compose -f docker-compose-live.yml --env-file etc/production.env pull
+	docker-compose -f docker-compose-live.yml --env-file etc/production.env down
+	docker-compose -f docker-compose-live.yml --env-file etc/production.env up --detach
+
+live-down:
+	docker-compose -f docker-compose-live.yml --env-file etc/production.env down

@@ -26,4 +26,6 @@ service=api
 ghcrio_image_name=ghcr.io/klaasjanelzinga/${application}/${service}
 
 (cd $script_dir/.. && docker build -t ${ghcrio_image_name}:$VERSION -f docker-files/Dockerfile .)
-
+docker tag ${ghcrio_image_name}:$VERSION ${ghcrio_image_name}:latest
+docker push ${ghcrio_image_name}:$VERSION
+docker push ${ghcrio_image_name}:latest

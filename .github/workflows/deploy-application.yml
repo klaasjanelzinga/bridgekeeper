@@ -11,12 +11,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v1
-      - name: Decrypt the test env file
-        env:
-          TEST_ENV_KEY: ${{secrets.TEST_ENV_KEY}}
-        run: scripts/decrypt-test-env.sh
       - name: Verify and build the build
-        run: make run-tests-in-docker-cicd run-build-in-docker
+        run: make run-build-in-docker
       - name: Login docker
         env:
           SUPER_SECRET: ${{secrets.GH_PACKAGES_PAT}}

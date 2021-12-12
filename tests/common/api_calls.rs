@@ -1,4 +1,5 @@
 use crate::common::create_user_request;
+use bridgekeeper_api::avatar::{GetAvatarResponse, UpdateAvatarRequest, UpdateAvatarResponse};
 use bridgekeeper_api::user::{
     ChangePasswordRequest, ChangePasswordResponse, CreateUserRequest, GetUserResponse,
     LoginRequest, LoginResponse, UpdateUserRequest,
@@ -152,14 +153,16 @@ pub async fn start_totp(
     client: &Client,
     user_id: &str,
     token: &str,
-) -> StartTotpRegistrationResult {
+) -> Result<StartTotpRegistrationResult, Status> {
     let response = client
         .post(format!("/user/{}/start-totp-registration", user_id))
         .header(Header::new("Authorization", format!("Bearer {}", token)))
         .dispatch()
         .await;
-    assert_eq!(response.status(), Status::Ok);
-    serde_json::from_str(&response.into_string().await.unwrap()).unwrap()
+    if response.status() == Status::Ok {
+        return Ok(serde_json::from_str(&response.into_string().await.unwrap()).unwrap());
+    }
+    Err(response.status())
 }
 
 /// confirm the totp code
@@ -169,7 +172,7 @@ pub async fn confirm_totp(
     user_id: &str,
     token: &str,
     totp_challenge: &str,
-) -> ConfirmTotpResponse {
+) -> Result<ConfirmTotpResponse, Status> {
     let validate_totp_request = ValidateTotpRequest {
         totp_challenge: totp_challenge.to_string(),
     };
@@ -179,8 +182,10 @@ pub async fn confirm_totp(
         .header(Header::new("Authorization", format!("Bearer {}", token)))
         .dispatch()
         .await;
-    assert_eq!(response.status(), Status::Ok);
-    serde_json::from_str(&response.into_string().await.unwrap()).unwrap()
+    if response.status() == Status::Ok {
+        return Ok(serde_json::from_str(&response.into_string().await.unwrap()).unwrap());
+    }
+    Err(response.status())
 }
 
 /// validate totp code
@@ -202,4 +207,60 @@ pub async fn validate_totp(
         .await;
     assert_eq!(response.status(), Status::Ok);
     serde_json::from_str(&response.into_string().await.unwrap()).unwrap()
+}
+
+/// Get avatar by the user_id.
+#[allow(dead_code)]
+pub async fn get_avatar(
+    client: &Client,
+    user_id: &String,
+    token: &str,
+) -> Result<GetAvatarResponse, Status> {
+    let response = client
+        .get(format!("/user/{}/avatar", user_id))
+        .header(Header::new("Authorization", format!("Bearer {}", token)))
+        .dispatch()
+        .await;
+    if response.status() == Status::Ok {
+        return Ok(serde_json::from_str(&response.into_string().await.unwrap()).unwrap());
+    }
+    Err(response.status())
+}
+
+/// Create or update avatar by the user_id.
+#[allow(dead_code)]
+pub async fn create_or_update_avatar(
+    client: &Client,
+    user_id: &String,
+    token: &str,
+    update_avatar_request: &UpdateAvatarRequest,
+) -> Result<UpdateAvatarResponse, Status> {
+    let response = client
+        .post(format!("/user/{}/avatar", user_id))
+        .json(&update_avatar_request)
+        .header(Header::new("Authorization", format!("Bearer {}", token)))
+        .dispatch()
+        .await;
+    if response.status() == Status::Ok {
+        return Ok(serde_json::from_str(&response.into_string().await.unwrap()).unwrap());
+    }
+    Err(response.status())
+}
+
+/// Delete avatar by the user_id.
+#[allow(dead_code)]
+pub async fn delete_avatar(
+    client: &Client,
+    user_id: &String,
+    token: &str,
+) -> Result<UpdateAvatarResponse, Status> {
+    let response = client
+        .delete(format!("/user/{}/avatar", user_id))
+        .header(Header::new("Authorization", format!("Bearer {}", token)))
+        .dispatch()
+        .await;
+    if response.status() == Status::Ok {
+        return Ok(serde_json::from_str(&response.into_string().await.unwrap()).unwrap());
+    }
+    Err(response.status())
 }

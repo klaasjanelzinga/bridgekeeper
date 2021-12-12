@@ -45,12 +45,12 @@ pub async fn setup<'a>() -> TestFixtures<'a> {
         }
     });
     set_env_var_if_not_set("ENVIRONMENT", "localhost");
-    set_env_var_if_not_set("MONGO_USER", "linkje_test");
-    set_env_var_if_not_set("MONGO_PASS", "test");
+    set_env_var_if_not_set("MONGO_USER", "bridgekeeper_test");
+    set_env_var_if_not_set("MONGO_PASS", "bridgekeeper");
     set_env_var_if_not_set("MONGO_HOST", "localhost");
     set_env_var_if_not_set("MONGO_PORT", "7011");
-    set_env_var_if_not_set("MONGO_DB", "linkje-test");
-    set_env_var_if_not_set("JWT_TOKEN_SECRET", "linkje-test");
+    set_env_var_if_not_set("MONGO_DB", "bridgekeeper-test");
+    set_env_var_if_not_set("JWT_TOKEN_SECRET", "bridgekeeper-test");
 
     let config = bridgekeeper_api::config::Config::from_environment();
     let db = bridgekeeper_api::create_mongo_connection(&config)

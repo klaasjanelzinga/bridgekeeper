@@ -179,7 +179,7 @@ impl Display for ChangePasswordResponse {
 
 /// Creates the user collection for the database.
 fn user_collection(db: &Database) -> Collection<User> {
-    db.collection::<User>("users")
+    db.collection::<User>("user")
 }
 
 /// Hash data with a random salt.

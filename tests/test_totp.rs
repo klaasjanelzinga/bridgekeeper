@@ -46,17 +46,26 @@ async fn test_totp_flow() {
         &login_data.token,
     )
     .await;
+    assert!(registration_response.is_ok());
+    let registration_response_data = registration_response.unwrap();
 
     // should generate backup codes
-    assert_eq!(registration_response.backup_codes.len(), 6);
-    assert_eq!(registration_response.backup_codes.get(0).unwrap().len(), 8);
+    assert_eq!(registration_response_data.backup_codes.len(), 6);
+    assert_eq!(
+        registration_response_data
+            .backup_codes
+            .get(0)
+            .unwrap()
+            .len(),
+        8
+    );
 
     // Calculate a TOTP for the secret.
     let seconds: u64 = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_secs();
-    let totp_value = totp::<Sha512>(registration_response.secret.as_bytes(), seconds);
+    let totp_value = totp::<Sha512>(registration_response_data.secret.as_bytes(), seconds);
 
     // Confirm the totp with the calculated OTP.
     let confirm_response = confirm_totp(
@@ -65,7 +74,8 @@ async fn test_totp_flow() {
         &login_data.token,
         &totp_value,
     )
-    .await;
+    .await
+    .unwrap();
     assert_eq!(confirm_response.success, true);
 
     // second login with a required OTP challenge. Should Ok with a token that is only valid for OTP.
@@ -144,7 +154,8 @@ async fn test_totp_flow_with_invalid_codes() {
         &login_data.user_id,
         &login_data.token,
     )
-    .await;
+    .await
+    .unwrap();
 
     // Calculate the correct TOTP for the secret.
     let seconds: u64 = SystemTime::now()
@@ -179,7 +190,8 @@ async fn test_totp_flow_with_invalid_codes() {
         &login_data.token,
         &correct_totp_value,
     )
-    .await;
+    .await
+    .unwrap();
 
     assert_eq!(confirm_response.success, true);
 

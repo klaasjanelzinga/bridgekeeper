@@ -27,12 +27,7 @@ async fn test_get_avatar_and_create() {
     let login_data = create_and_login_user(&test_fixtures.client).await;
 
     // Get while no avatar is available. Should return Not found
-    let response = get_avatar(
-        &test_fixtures.client,
-        &login_data.user_id,
-        &login_data.token,
-    )
-    .await;
+    let response = get_avatar(&test_fixtures.client, &login_data.token).await;
     assert!(response.is_err());
     assert_eq!(response.err().unwrap(), Status::NotFound);
 
@@ -43,7 +38,6 @@ async fn test_get_avatar_and_create() {
     };
     let response = create_or_update_avatar(
         &test_fixtures.client,
-        &login_data.user_id,
         &login_data.token,
         &update_avatar_request,
     )
@@ -51,13 +45,9 @@ async fn test_get_avatar_and_create() {
     assert!(response.is_ok());
 
     // The get should now return an avatar.
-    let response = get_avatar(
-        &test_fixtures.client,
-        &login_data.user_id,
-        &login_data.token,
-    )
-    .await
-    .unwrap();
+    let response = get_avatar(&test_fixtures.client, &login_data.token)
+        .await
+        .unwrap();
     assert_eq!(response.user_id, login_data.user_id);
     assert_ne!(response.avatar_base64, "new-avatar-data");
 
@@ -67,7 +57,6 @@ async fn test_get_avatar_and_create() {
     };
     let response = create_or_update_avatar(
         &test_fixtures.client,
-        &login_data.user_id,
         &login_data.token,
         &update_avatar_request,
     )
@@ -75,31 +64,17 @@ async fn test_get_avatar_and_create() {
     assert!(response.is_ok());
 
     // The get should now return the avatar "new-avatar-data"
-    let response = get_avatar(
-        &test_fixtures.client,
-        &login_data.user_id,
-        &login_data.token,
-    )
-    .await
-    .unwrap();
+    let response = get_avatar(&test_fixtures.client, &login_data.token)
+        .await
+        .unwrap();
     assert_eq!(response.user_id, login_data.user_id);
     assert_eq!(response.avatar_base64, "new-avatar-data");
 
     // Delete the avatar.
-    let response = delete_avatar(
-        &test_fixtures.client,
-        &login_data.user_id,
-        &login_data.token,
-    )
-    .await;
+    let response = delete_avatar(&test_fixtures.client, &login_data.token).await;
     assert!(response.is_ok());
 
-    let response = get_avatar(
-        &test_fixtures.client,
-        &login_data.user_id,
-        &login_data.token,
-    )
-    .await;
+    let response = get_avatar(&test_fixtures.client, &login_data.token).await;
     assert!(response.is_err());
     assert_eq!(response.err().unwrap(), Status::NotFound);
 

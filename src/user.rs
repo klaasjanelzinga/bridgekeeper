@@ -267,33 +267,21 @@ pub async fn update_user(db_user: &User, db: &Database) -> Result<bool, ErrorKin
 ///
 /// ## Args:
 /// - valid_jwt_token: A valid jwt token. The user id will be validated from the token to the second arg.
-/// - user_id: The user_id, must match token value..
 /// - db: The mongo database instance.
 ///
 /// ## Returns:
 /// User with the given email address or an Error.
 /// - EntityNotFound - No user exists for the email address.
-/// - IllegalDataAccess - The user_id in the token does not match the user_id argument.
 /// - MongoDbError - Something is off with mongo.
 pub async fn get_with_user_id(
     valid_jwt_token: &ValidJwtToken,
-    user_id: &str,
     db: &Database,
 ) -> Result<User, ErrorKind> {
-    trace!("get_with_user_id(({}, {}, _)", valid_jwt_token, user_id);
-    if valid_jwt_token.jwt_claims.user_id != user_id {
-        return Err(ErrorKind::IllegalDataAccess {
-            message: format!(
-                "User with id {} made a request for user {}",
-                valid_jwt_token.jwt_claims.user_id, user_id
-            ),
-        });
-    }
+    trace!("get_with_user_id(({}, _)", valid_jwt_token);
     if valid_jwt_token.jwt_claims.requires_otp_challenge {
         return Err(ErrorKind::OtpAuthorizationRequired);
     }
-
-    get_by_id(user_id, db).await
+    get_by_id(&valid_jwt_token.jwt_claims.user_id, db).await
 }
 
 /// Fetches the user entity by email_address. Returns EntityNotFound if not found.

@@ -22,7 +22,15 @@ pub struct CreateAndLoginData {
 
 pub async fn create_and_login_user(client: &Client) -> CreateAndLoginData {
     let create_user_request = create_user_request();
+    info!(
+        "Creating user {} {}",
+        create_user_request.email_address, create_user_request.new_password
+    );
     let created_user = create_user(client, &create_user_request).await;
+    info!(
+        "Creating user {} {}",
+        create_user_request.email_address, create_user_request.new_password
+    );
     let login_response = login(
         client,
         &create_user_request.email_address,
@@ -71,6 +79,7 @@ pub async fn login(
         email_address: String::from(email_address),
         password: String::from(password),
     };
+    info!("password{}", password);
     let response = client
         .post("/user/login")
         .json(&login_request)
@@ -105,7 +114,6 @@ pub async fn update_user(
 #[allow(dead_code)]
 pub async fn change_password(
     client: &Client,
-    user_id: &str,
     token: &str,
     current_password: &str,
     new_password: &str,
@@ -116,7 +124,7 @@ pub async fn change_password(
     };
 
     let response = client
-        .post(format!("/user/{}/change-password", user_id))
+        .post("/user/change-password")
         .json(&change_password_request)
         .header(Header::new("Authorization", format!("Bearer {}", token)))
         .dispatch()
@@ -131,13 +139,9 @@ pub async fn change_password(
 
 /// Get user by the user_id.
 #[allow(dead_code)]
-pub async fn get_user(
-    client: &Client,
-    user_id: &String,
-    token: &str,
-) -> Result<GetUserResponse, Status> {
+pub async fn get_user(client: &Client, token: &str) -> Result<GetUserResponse, Status> {
     let response = client
-        .get(format!("/user/{}", user_id))
+        .get("/user")
         .header(Header::new("Authorization", format!("Bearer {}", token)))
         .dispatch()
         .await;
@@ -151,11 +155,10 @@ pub async fn get_user(
 #[allow(dead_code)]
 pub async fn start_totp(
     client: &Client,
-    user_id: &str,
     token: &str,
 ) -> Result<StartTotpRegistrationResult, Status> {
     let response = client
-        .post(format!("/user/{}/start-totp-registration", user_id))
+        .post("/user/start-totp-registration")
         .header(Header::new("Authorization", format!("Bearer {}", token)))
         .dispatch()
         .await;
@@ -169,7 +172,6 @@ pub async fn start_totp(
 #[allow(dead_code)]
 pub async fn confirm_totp(
     client: &Client,
-    user_id: &str,
     token: &str,
     totp_challenge: &str,
 ) -> Result<ConfirmTotpResponse, Status> {
@@ -177,7 +179,7 @@ pub async fn confirm_totp(
         totp_challenge: totp_challenge.to_string(),
     };
     let response = client
-        .post(format!("/user/{}/confirm-totp-registration", user_id))
+        .post("/user/confirm-totp-registration")
         .json(&validate_totp_request)
         .header(Header::new("Authorization", format!("Bearer {}", token)))
         .dispatch()
@@ -190,17 +192,12 @@ pub async fn confirm_totp(
 
 /// validate totp code
 #[allow(dead_code)]
-pub async fn validate_totp(
-    client: &Client,
-    user_id: &str,
-    token: &str,
-    totp_challenge: &str,
-) -> LoginResponse {
+pub async fn validate_totp(client: &Client, token: &str, totp_challenge: &str) -> LoginResponse {
     let validate_totp_request = ValidateTotpRequest {
         totp_challenge: totp_challenge.to_string(),
     };
     let response = client
-        .post(format!("/user/{}/validate-totp", user_id))
+        .post("/user/validate-totp")
         .json(&validate_totp_request)
         .header(Header::new("Authorization", format!("Bearer {}", token)))
         .dispatch()
@@ -211,13 +208,9 @@ pub async fn validate_totp(
 
 /// Get avatar by the user_id.
 #[allow(dead_code)]
-pub async fn get_avatar(
-    client: &Client,
-    user_id: &String,
-    token: &str,
-) -> Result<GetAvatarResponse, Status> {
+pub async fn get_avatar(client: &Client, token: &str) -> Result<GetAvatarResponse, Status> {
     let response = client
-        .get(format!("/user/{}/avatar", user_id))
+        .get("/user/avatar")
         .header(Header::new("Authorization", format!("Bearer {}", token)))
         .dispatch()
         .await;
@@ -231,12 +224,11 @@ pub async fn get_avatar(
 #[allow(dead_code)]
 pub async fn create_or_update_avatar(
     client: &Client,
-    user_id: &String,
     token: &str,
     update_avatar_request: &UpdateAvatarRequest,
 ) -> Result<UpdateAvatarResponse, Status> {
     let response = client
-        .post(format!("/user/{}/avatar", user_id))
+        .post("/user/avatar")
         .json(&update_avatar_request)
         .header(Header::new("Authorization", format!("Bearer {}", token)))
         .dispatch()
@@ -249,13 +241,9 @@ pub async fn create_or_update_avatar(
 
 /// Delete avatar by the user_id.
 #[allow(dead_code)]
-pub async fn delete_avatar(
-    client: &Client,
-    user_id: &String,
-    token: &str,
-) -> Result<UpdateAvatarResponse, Status> {
+pub async fn delete_avatar(client: &Client, token: &str) -> Result<UpdateAvatarResponse, Status> {
     let response = client
-        .delete(format!("/user/{}/avatar", user_id))
+        .delete("/user/avatar")
         .header(Header::new("Authorization", format!("Bearer {}", token)))
         .dispatch()
         .await;

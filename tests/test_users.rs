@@ -27,12 +27,7 @@ async fn test_get_user() {
 
     let login_data = create_and_login_user(&test_fixtures.client).await;
 
-    let get_user_response = get_user(
-        &test_fixtures.client,
-        &login_data.user_id,
-        &login_data.token,
-    )
-    .await;
+    let get_user_response = get_user(&test_fixtures.client, &login_data.token).await;
     assert!(get_user_response.is_ok());
     let get_user_data = get_user_response.unwrap();
 
@@ -41,15 +36,6 @@ async fn test_get_user() {
     assert_eq!(login_data.last_name, get_user_data.last_name);
     assert_eq!(login_data.display_name, get_user_data.display_name);
     assert!(get_user_data.user_id.len() > 1);
-
-    let illegal_response = get_user(
-        &test_fixtures.client,
-        &format!("unknown-{}", login_data.email_address),
-        &login_data.token,
-    )
-    .await;
-    assert!(illegal_response.is_err());
-    assert_eq!(illegal_response.err().unwrap(), Status::Forbidden);
 
     ()
 }
@@ -83,7 +69,7 @@ async fn test_create_user() {
     assert_eq!(create_user_request.display_name, created_user.display_name);
     assert!(created_user.user_id.len() > 1);
 
-    let get_result = get_user(&test_fixtures.client, &created_user.user_id, &token).await;
+    let get_result = get_user(&test_fixtures.client, &token).await;
     assert!(get_result.is_ok());
 
     assert_eq!(
@@ -129,12 +115,7 @@ async fn test_update_user() {
     );
     assert_eq!(updated_user.display_name, update_user_request.display_name);
 
-    let get_user_response = get_user(
-        &test_fixtures.client,
-        &updated_user.user_id,
-        &login_data.token,
-    )
-    .await;
+    let get_user_response = get_user(&test_fixtures.client, &login_data.token).await;
     assert!(get_user_response.is_ok());
     let get_user = get_user_response.unwrap();
     assert_eq!(get_user.first_name, update_user_request.first_name);
@@ -187,45 +168,6 @@ async fn test_login_user() {
     ()
 }
 
-/// Test authorization:
-/// - Two users created. Both logged in.
-/// - User one uses the token of the other user, => Forbidden.
-#[rocket::async_test]
-async fn test_authorization() {
-    let test_fixtures = common::setup().await;
-    common::empty_users_collection(&test_fixtures.db).await;
-
-    let login_data_first = create_and_login_user(&test_fixtures.client).await;
-    let login_data_second = create_and_login_user(&test_fixtures.client).await;
-
-    // get with own tokens
-    let with_own_response_first = get_user(
-        &test_fixtures.client,
-        &login_data_first.user_id,
-        &login_data_first.token,
-    )
-    .await;
-    let with_own_response_second = get_user(
-        &test_fixtures.client,
-        &login_data_second.user_id,
-        &login_data_second.token,
-    )
-    .await;
-    assert!(with_own_response_second.is_ok());
-    assert!(with_own_response_first.is_ok());
-
-    // cross the tokens, should return 403.
-    let crossed_response = get_user(
-        &test_fixtures.client,
-        &login_data_first.user_id,
-        &login_data_second.token,
-    )
-    .await;
-    assert_eq!(crossed_response.err().unwrap(), Status::Forbidden);
-
-    ()
-}
-
 /// Test changing of password:
 /// - Create user.
 /// - Login.
@@ -244,7 +186,6 @@ async fn test_change_password() {
 
     let change_password_response_result = change_password(
         &test_fixtures.client,
-        &login_data.user_id,
         &login_data.token,
         &login_data.password,
         &new_password,
@@ -285,7 +226,6 @@ async fn test_change_password() {
     // Change password with invalid current password.
     let change_password_response_result = change_password(
         &test_fixtures.client,
-        &login_data.user_id,
         &login_data.token,
         &login_data.password,
         &new_password,
@@ -309,7 +249,6 @@ async fn test_change_password() {
     for invalid_password in invalid_passwords {
         let change_password_response_result = change_password(
             &test_fixtures.client,
-            &login_data.user_id,
             &login_data.token,
             &new_password,
             invalid_password,

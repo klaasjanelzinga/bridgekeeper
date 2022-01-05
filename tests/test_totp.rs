@@ -5,10 +5,9 @@ use crate::common::api_calls::{
     confirm_totp, create_and_login_user, get_user, start_totp, validate_totp,
 };
 use bridgekeeper_api::jwt::JwtClaims;
-use bridgekeeper_api::user_totp::ValidateTotpRequest;
 use common::api_calls::login;
 use jsonwebtoken::{decode, Algorithm, Validation};
-use rocket::http::{Header, Status};
+use rocket::http::Status;
 use std::time::{SystemTime, UNIX_EPOCH};
 use totp_lite::{totp, Sha512};
 
@@ -40,12 +39,7 @@ async fn test_totp_flow() {
     assert_eq!(token_message.claims.otp_is_validated, false);
 
     // start registration for a otp.
-    let registration_response = start_totp(
-        &test_fixtures.client,
-        &login_data.user_id,
-        &login_data.token,
-    )
-    .await;
+    let registration_response = start_totp(&test_fixtures.client, &login_data.token).await;
     assert!(registration_response.is_ok());
     let registration_response_data = registration_response.unwrap();
 
@@ -68,14 +62,9 @@ async fn test_totp_flow() {
     let totp_value = totp::<Sha512>(registration_response_data.secret.as_bytes(), seconds);
 
     // Confirm the totp with the calculated OTP.
-    let confirm_response = confirm_totp(
-        &test_fixtures.client,
-        &login_data.user_id,
-        &login_data.token,
-        &totp_value,
-    )
-    .await
-    .unwrap();
+    let confirm_response = confirm_totp(&test_fixtures.client, &login_data.token, &totp_value)
+        .await
+        .unwrap();
     assert_eq!(confirm_response.success, true);
 
     // second login with a required OTP challenge. Should Ok with a token that is only valid for OTP.
@@ -98,23 +87,13 @@ async fn test_totp_flow() {
     assert_eq!(token_second_login.claims.otp_is_validated, false);
 
     // Token cannot be used anywhere else since an otp challenge is required.
-    let failing_api_call = get_user(
-        &test_fixtures.client,
-        &login_data.user_id,
-        &second_login.token,
-    )
-    .await;
+    let failing_api_call = get_user(&test_fixtures.client, &second_login.token).await;
     assert!(failing_api_call.is_err());
     assert_eq!(failing_api_call.err().unwrap(), Status::Forbidden);
 
     // validate the otp
-    let validated_totp_response = validate_totp(
-        &test_fixtures.client,
-        &login_data.user_id,
-        &login_data.token,
-        &totp_value,
-    )
-    .await;
+    let validated_totp_response =
+        validate_totp(&test_fixtures.client, &login_data.token, &totp_value).await;
     assert_ne!(validated_totp_response.token, second_login.token);
 
     // dissect the token.
@@ -130,12 +109,7 @@ async fn test_totp_flow() {
     );
     assert_eq!(token_otp_validated_login.claims.otp_is_validated, true);
 
-    let api_call = get_user(
-        &test_fixtures.client,
-        &login_data.user_id,
-        &validated_totp_response.token,
-    )
-    .await;
+    let api_call = get_user(&test_fixtures.client, &validated_totp_response.token).await;
     assert!(api_call.is_ok());
 
     ()
@@ -149,13 +123,9 @@ async fn test_totp_flow_with_invalid_codes() {
 
     let login_data = create_and_login_user(&test_fixtures.client).await;
 
-    let registration_response = start_totp(
-        &test_fixtures.client,
-        &login_data.user_id,
-        &login_data.token,
-    )
-    .await
-    .unwrap();
+    let registration_response = start_totp(&test_fixtures.client, &login_data.token)
+        .await
+        .unwrap();
 
     // Calculate the correct TOTP for the secret.
     let seconds: u64 = SystemTime::now()
@@ -165,28 +135,13 @@ async fn test_totp_flow_with_invalid_codes() {
     let correct_totp_value = totp::<Sha512>(registration_response.secret.as_bytes(), seconds);
 
     // Confirm with an invalid token.
-    let validate_totp_request = ValidateTotpRequest {
-        totp_challenge: String::from("invalid"),
-    };
-    let response = test_fixtures
-        .client
-        .post(format!(
-            "/user/{}/confirm-totp-registration",
-            login_data.user_id
-        ))
-        .json(&validate_totp_request)
-        .header(Header::new(
-            "Authorization",
-            format!("Bearer {}", login_data.token),
-        ))
-        .dispatch()
-        .await;
-    assert_eq!(response.status(), Status::Unauthorized);
+    let response = confirm_totp(&test_fixtures.client, &login_data.token, "invalid").await;
+    assert!(response.is_err());
+    assert_eq!(response.err().unwrap(), Status::Unauthorized);
 
     // Confirm the totp
     let confirm_response = confirm_totp(
         &test_fixtures.client,
-        &login_data.user_id,
         &login_data.token,
         &correct_totp_value,
     )

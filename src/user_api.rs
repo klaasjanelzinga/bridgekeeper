@@ -7,22 +7,22 @@ use rocket::State;
 use crate::config::Config;
 use crate::jwt::ValidJwtToken;
 use crate::user::{
-    change_password_for_user, get_with_user_id, ChangePasswordRequest, ChangePasswordResponse,
-    CreateUserRequest, GetUserResponse, LoginRequest, LoginResponse, UpdateUserRequest,
+    change_password_for_user, create, get_with_user_id, update, ChangePasswordRequest,
+    ChangePasswordResponse, CreateUserRequest, GetUserResponse, LoginRequest, LoginResponse,
+    UpdateUserRequest,
 };
 use crate::user_totp::{
     confirm_totp_code_for_user, start_totp_registration_for_user, validate_totp_for_user,
     ConfirmTotpResponse, StartTotpRegistrationResult, ValidateTotpRequest,
 };
 
-#[get("/user/<user_id>")]
+#[get("/user")]
 pub async fn get_user(
-    user_id: &str,
     db: &State<Database>,
     valid_jwt_token: ValidJwtToken,
 ) -> Result<Json<GetUserResponse>, Status> {
-    trace!("get_user({}, _, {})", &user_id, valid_jwt_token);
-    let user = get_with_user_id(&valid_jwt_token, user_id, db).await?;
+    trace!("get_user(_, {})", valid_jwt_token);
+    let user = get_with_user_id(&valid_jwt_token, db).await?;
     Ok(Json(GetUserResponse::from(&user)))
 }
 
@@ -37,8 +37,8 @@ pub async fn update_user(
         update_request.user_id,
         valid_jwt_token
     );
-    let user = get_with_user_id(&valid_jwt_token, &update_request.user_id, db).await?;
-    let update_response = crate::user::update(&user, &update_request, &db).await?;
+    let user = get_with_user_id(&valid_jwt_token, db).await?;
+    let update_response = update(&user, &update_request, &db).await?;
     Ok(Json(update_response))
 }
 
@@ -48,7 +48,7 @@ pub async fn create_user(
     db: &State<Database>,
 ) -> Result<status::Custom<Json<GetUserResponse>>, Status> {
     trace!("create_user({}, _)", create_request.email_address);
-    let create_response = crate::user::create(&create_request, &db).await?;
+    let create_response = create(&create_request, &db).await?;
     Ok(status::Custom(Status::Created, Json(create_response)))
 }
 
@@ -69,70 +69,53 @@ pub async fn login(
     }
 }
 
-#[post("/user/<user_id>/change-password", data = "<change_password_request>")]
+#[post("/user/change-password", data = "<change_password_request>")]
 pub async fn change_password(
-    user_id: &str,
     change_password_request: Json<ChangePasswordRequest>,
     valid_jwt_token: ValidJwtToken,
     db: &State<Database>,
 ) -> Result<Json<ChangePasswordResponse>, Status> {
-    trace!("change_password({}, _, {}, _)", user_id, valid_jwt_token);
-    let user = get_with_user_id(&valid_jwt_token, user_id, db).await?;
-
+    trace!("change_password(_, {}, _)", valid_jwt_token);
+    let user = get_with_user_id(&valid_jwt_token, db).await?;
     let result = change_password_for_user(&user, &change_password_request, db).await?;
     Ok(Json(result))
 }
 
-#[post("/user/<user_id>/start-totp-registration")]
+#[post("/user/start-totp-registration")]
 pub async fn start_totp_registration(
-    user_id: &str,
     valid_jwt_token: ValidJwtToken,
     db: &State<Database>,
 ) -> Result<Json<StartTotpRegistrationResult>, Status> {
-    trace!(
-        "start_totp_registration({}, {}, _)",
-        user_id,
-        valid_jwt_token
-    );
-    let user = get_with_user_id(&valid_jwt_token, user_id, db).await?;
-
+    trace!("start_totp_registration({}, _)", valid_jwt_token);
+    let user = get_with_user_id(&valid_jwt_token, db).await?;
     let result = start_totp_registration_for_user(&user, db).await?;
     Ok(Json(result))
 }
 
-#[post(
-    "/user/<user_id>/confirm-totp-registration",
-    data = "<validate_totp_request>"
-)]
+#[post("/user/confirm-totp-registration", data = "<validate_totp_request>")]
 pub async fn confirm_totp_registration(
-    user_id: &str,
     validate_totp_request: Json<ValidateTotpRequest>,
     valid_jwt_token: ValidJwtToken,
     db: &State<Database>,
 ) -> Result<Json<ConfirmTotpResponse>, Status> {
-    trace!(
-        "confirm_totp_registration({}, {}, _)",
-        user_id,
-        valid_jwt_token
-    );
+    trace!("confirm_totp_registration({}, _)", valid_jwt_token);
 
-    let user = get_with_user_id(&valid_jwt_token, user_id, db).await?;
+    let user = get_with_user_id(&valid_jwt_token, db).await?;
     let result = confirm_totp_code_for_user(&user, &validate_totp_request, db).await?;
 
     Ok(Json(result))
 }
 
-#[post("/user/<user_id>/validate-totp", data = "<validate_totp_request>")]
+#[post("/user/validate-totp", data = "<validate_totp_request>")]
 pub async fn validate_totp(
-    user_id: &str,
     config: &State<Config<'_>>,
     validate_totp_request: Json<ValidateTotpRequest>,
     valid_jwt_token: ValidJwtToken,
     db: &State<Database>,
 ) -> Result<Json<LoginResponse>, Status> {
-    trace!("validate_totp({}, {}, _)", user_id, valid_jwt_token);
+    trace!("validate_totp({}, _)", valid_jwt_token);
 
-    let user = get_with_user_id(&valid_jwt_token, user_id, db).await?;
+    let user = get_with_user_id(&valid_jwt_token, db).await?;
     let result = validate_totp_for_user(&user, &config, &validate_totp_request)?;
 
     Ok(Json(result))

@@ -34,10 +34,20 @@ pub async fn setup<'a>() -> TestFixtures<'a> {
     LOG_INIT.call_once(|| {
         if env::var_os("RUST_LOG").is_none() {
             pretty_env_logger::formatted_timed_builder()
-                .filter_module("rocket", LevelFilter::Error)
+                // .format(|buf, record| {
+                //     writeln!(
+                //         buf,
+                //         "{:?} - {} - {}",
+                //         current().id(),
+                //         record.level(),
+                //         record.args()
+                //     )
+                // })
+                .filter_module("rocket", LevelFilter::Warn)
                 .filter_module("bridgekeeper_api", LevelFilter::Trace)
                 .filter_module("test_users", LevelFilter::Trace)
                 .filter_module("test_totp", LevelFilter::Trace)
+                .filter_module("test_illegal_access", LevelFilter::Trace)
                 .filter_level(LevelFilter::Warn)
                 .init();
         } else {
@@ -57,7 +67,7 @@ pub async fn setup<'a>() -> TestFixtures<'a> {
         .await
         .unwrap();
 
-    let client = Client::tracked(bridgekeeper_api::rocket(&db.clone(), &config.clone()))
+    let client = Client::untracked(bridgekeeper_api::rocket(&db.clone(), &config.clone()))
         .await
         .expect("Client expected");
 
@@ -72,7 +82,8 @@ pub async fn empty_users_collection(db: &Database) {
         if EMPTY_USERS_COLLECTION_BARRIER == 1 {
             EMPTY_USERS_COLLECTION_BARRIER = 0;
             info!("Emptying the Users collection");
-            db.collection::<User>("users").drop(None).await.unwrap();
+            db.collection::<User>("user").drop(None).await.unwrap();
+            db.collection::<User>("avatar").drop(None).await.unwrap();
             info!("Emptied the Users collection");
             EMPTIED_USERS_COLLECTION_BARRIER = 1;
         }

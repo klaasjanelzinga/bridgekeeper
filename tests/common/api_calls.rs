@@ -22,15 +22,9 @@ pub struct CreateAndLoginData {
 
 pub async fn create_and_login_user(client: &Client) -> CreateAndLoginData {
     let create_user_request = create_user_request();
-    info!(
-        "Creating user {} {}",
-        create_user_request.email_address, create_user_request.new_password
-    );
-    let created_user = create_user(client, &create_user_request).await;
-    info!(
-        "Creating user {} {}",
-        create_user_request.email_address, create_user_request.new_password
-    );
+    let created_user = create_user(client, &create_user_request)
+        .await
+        .expect("Created user");
     let login_response = login(
         client,
         &create_user_request.email_address,
@@ -57,15 +51,17 @@ pub async fn create_and_login_user(client: &Client) -> CreateAndLoginData {
 pub async fn create_user(
     client: &Client,
     create_user_request: &CreateUserRequest,
-) -> GetUserResponse {
+) -> Result<GetUserResponse, Status> {
     let response = client
         .post("/user")
         .json(&create_user_request)
         .dispatch()
         .await;
+    if response.status() != Status::Created {
+        return Err(response.status());
+    }
     assert_eq!(response.status(), Status::Created);
-
-    serde_json::from_str(&response.into_string().await.unwrap()).unwrap()
+    Ok(serde_json::from_str(&response.into_string().await.unwrap()).unwrap())
 }
 
 /// Login the user.
@@ -79,7 +75,6 @@ pub async fn login(
         email_address: String::from(email_address),
         password: String::from(password),
     };
-    info!("password{}", password);
     let response = client
         .post("/user/login")
         .json(&login_request)

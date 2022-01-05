@@ -12,7 +12,9 @@ use fake::faker::internet::en::{Password, SafeEmail};
 use fake::faker::name::en::{FirstName, LastName, Name};
 use fake::Fake;
 use rocket::local::asynchronous::Client;
+use std::io::Write;
 use std::sync::Once;
+use std::thread::current;
 use std::time::Duration;
 use tokio::time::sleep;
 
@@ -34,16 +36,16 @@ pub async fn setup<'a>() -> TestFixtures<'a> {
     LOG_INIT.call_once(|| {
         if env::var_os("RUST_LOG").is_none() {
             pretty_env_logger::formatted_timed_builder()
-                // .format(|buf, record| {
-                //     writeln!(
-                //         buf,
-                //         "{:?} - {} - {}",
-                //         current().id(),
-                //         record.level(),
-                //         record.args()
-                //     )
-                // })
-                .filter_module("rocket", LevelFilter::Warn)
+                .format(|buf, record| {
+                    writeln!(
+                        buf,
+                        "{:?} - {} - {}",
+                        current().id(),
+                        record.level(),
+                        record.args()
+                    )
+                })
+                .filter_module("rocket", LevelFilter::Error)
                 .filter_module("bridgekeeper_api", LevelFilter::Trace)
                 .filter_module("test_users", LevelFilter::Trace)
                 .filter_module("test_totp", LevelFilter::Trace)

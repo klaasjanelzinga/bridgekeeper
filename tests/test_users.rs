@@ -50,15 +50,9 @@ async fn test_create_user() {
     common::empty_users_collection(&test_fixtures.db).await;
 
     let create_user_request = common::create_user_request();
-    let created_user = create_user(&test_fixtures.client, &create_user_request).await;
-    let token = login(
-        &test_fixtures.client,
-        &create_user_request.email_address,
-        &create_user_request.new_password,
-    )
-    .await
-    .unwrap()
-    .token;
+    let created_user_response = create_user(&test_fixtures.client, &create_user_request).await;
+    assert!(created_user_response.is_ok());
+    let created_user = created_user_response.unwrap();
 
     assert_eq!(
         create_user_request.email_address,
@@ -69,6 +63,16 @@ async fn test_create_user() {
     assert_eq!(create_user_request.display_name, created_user.display_name);
     assert!(created_user.user_id.len() > 1);
 
+    // login and get user
+    let token = login(
+        &test_fixtures.client,
+        &create_user_request.email_address,
+        &create_user_request.new_password,
+    )
+    .await
+    .unwrap()
+    .token;
+
     let get_result = get_user(&test_fixtures.client, &token).await;
     assert!(get_result.is_ok());
 
@@ -76,6 +80,10 @@ async fn test_create_user() {
         created_user.email_address,
         get_result.unwrap().email_address
     );
+
+    // create the user again, should return already created.
+    let created_user_second_time = create_user(&test_fixtures.client, &create_user_request).await;
+    assert!(created_user_second_time.is_err());
 
     ()
 }

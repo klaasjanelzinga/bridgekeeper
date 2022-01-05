@@ -350,6 +350,22 @@ pub async fn create(
     db: &Database,
 ) -> Result<GetUserResponse, ErrorKind> {
     trace!("create({}, ...)", create_user_request);
+    let collection = user_collection(db);
+    let optional_user = collection
+        .find_one(
+            doc! {"email_address": &create_user_request.email_address},
+            None,
+        )
+        .await?;
+    if optional_user.is_some() {
+        return Err(ErrorKind::IllegalRequest {
+            message: format!(
+                "Email address {} is already taken.",
+                create_user_request.email_address
+            ),
+        });
+    }
+
     let password_hash_and_salt = hash_data(&create_user_request.new_password)?;
     let new_user = User {
         _id: None,

@@ -86,6 +86,10 @@ pub async fn empty_users_collection(db: &Database) {
             info!("Emptying the Users collection");
             db.collection::<User>("user").drop(None).await.unwrap();
             db.collection::<User>("avatar").drop(None).await.unwrap();
+            db.collection::<User>("authorization")
+                .drop(None)
+                .await
+                .unwrap();
             info!("Emptied the Users collection");
             EMPTIED_USERS_COLLECTION_BARRIER = 1;
         }

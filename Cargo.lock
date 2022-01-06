@@ -164,6 +164,7 @@ dependencies = [
  "mongodb",
  "pretty_env_logger",
  "rand",
+ "regex",
  "rocket",
  "rust-argon2",
  "serde",

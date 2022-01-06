@@ -1,4 +1,7 @@
 use crate::common::create_user_request;
+use bridgekeeper_api::authorization::{
+    AddAuthorizationRequest, Authorization, IsAuthorizedRequest, IsAuthorizedResponse,
+};
 use bridgekeeper_api::avatar::{GetAvatarResponse, UpdateAvatarRequest, UpdateAvatarResponse};
 use bridgekeeper_api::user::{
     ChangePasswordRequest, ChangePasswordResponse, CreateUserRequest, GetUserResponse,
@@ -239,6 +242,44 @@ pub async fn create_or_update_avatar(
 pub async fn delete_avatar(client: &Client, token: &str) -> Result<UpdateAvatarResponse, Status> {
     let response = client
         .delete("/user/avatar")
+        .header(Header::new("Authorization", format!("Bearer {}", token)))
+        .dispatch()
+        .await;
+    if response.status() == Status::Ok {
+        return Ok(serde_json::from_str(&response.into_string().await.unwrap()).unwrap());
+    }
+    Err(response.status())
+}
+
+/// Add an authorization record for a user.
+#[allow(dead_code)]
+pub async fn add_authorization(
+    client: &Client,
+    token: &str,
+    add_authorization_request: &AddAuthorizationRequest,
+) -> Result<Authorization, Status> {
+    let response = client
+        .post("/user/authorization")
+        .json(add_authorization_request)
+        .header(Header::new("Authorization", format!("Bearer {}", token)))
+        .dispatch()
+        .await;
+    if response.status() == Status::Ok {
+        return Ok(serde_json::from_str(&response.into_string().await.unwrap()).unwrap());
+    }
+    Err(response.status())
+}
+
+/// Is user authorized.
+#[allow(dead_code)]
+pub async fn is_authorized(
+    client: &Client,
+    token: &str,
+    is_authorized_request: &IsAuthorizedRequest,
+) -> Result<IsAuthorizedResponse, Status> {
+    let response = client
+        .post("/user/is_authorized")
+        .json(is_authorized_request)
         .header(Header::new("Authorization", format!("Bearer {}", token)))
         .dispatch()
         .await;

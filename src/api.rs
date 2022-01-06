@@ -9,6 +9,7 @@ use mongodb::Client;
 use mongodb::Database;
 use rocket::{Build, Rocket};
 
+use crate::authorization_api::{add_authorization, is_authorized};
 use crate::avatar_api::{create_or_update_avatar, delete_avatar, get_avatar};
 use crate::config::Config;
 use crate::user_api::{
@@ -16,6 +17,8 @@ use crate::user_api::{
     start_totp_registration, update_user, validate_totp,
 };
 
+pub mod authorization;
+pub mod authorization_api;
 pub mod avatar;
 pub mod avatar_api;
 pub mod config;
@@ -44,6 +47,8 @@ pub fn rocket(db: &Database, config: &Config<'static>) -> Rocket<Build> {
                 get_avatar,
                 delete_avatar,
                 create_or_update_avatar,
+                add_authorization,
+                is_authorized,
             ],
         )
 }

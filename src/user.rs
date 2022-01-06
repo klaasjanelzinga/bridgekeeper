@@ -382,7 +382,6 @@ pub async fn create(
         is_approved: false,
     };
 
-    let collection = user_collection(db);
     let insert_result = collection.insert_one(&new_user, None).await?;
 
     trace!(

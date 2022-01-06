@@ -322,18 +322,22 @@ pub async fn login(
     }
 
     let token = jwt::create_jwt_token(&user, &config.encoding_key)?;
-    if user.otp_hash.is_some() {
-        debug!("User is challenged with an otp.");
-        return Ok(LoginResponse {
-            needs_otp: true,
-            token,
-        });
+    match user.otp_hash {
+        Some(_) => {
+            debug!("User is challenged with an otp.");
+            Ok(LoginResponse {
+                needs_otp: true,
+                token,
+            })
+        }
+        None => {
+            debug!("Successfully logged in user {}", user);
+            Ok(LoginResponse {
+                needs_otp: false,
+                token,
+            })
+        }
     }
-    debug!("Successfully logged in user {}", user);
-    Ok(LoginResponse {
-        needs_otp: false,
-        token,
-    })
 }
 
 /// Create a new user.

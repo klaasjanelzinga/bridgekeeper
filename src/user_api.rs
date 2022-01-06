@@ -5,9 +5,9 @@ use rocket::serde::json::Json;
 use rocket::State;
 
 use crate::config::Config;
-use crate::jwt::ValidJwtToken;
+use crate::jwt::{ValidJwtToken, ValidJwtTokenWithOtpChallengeOk};
 use crate::user::{
-    change_password_for_user, create, get_with_user_id, update, ChangePasswordRequest,
+    change_password_for_user, create, get_by_id, get_with_user_id, update, ChangePasswordRequest,
     ChangePasswordResponse, CreateUserRequest, GetUserResponse, LoginRequest, LoginResponse,
     UpdateUserRequest,
 };
@@ -110,12 +110,12 @@ pub async fn confirm_totp_registration(
 pub async fn validate_totp(
     config: &State<Config<'_>>,
     validate_totp_request: Json<ValidateTotpRequest>,
-    valid_jwt_token: ValidJwtToken,
+    valid_jwt_token: ValidJwtTokenWithOtpChallengeOk,
     db: &State<Database>,
 ) -> Result<Json<LoginResponse>, Status> {
     trace!("validate_totp({}, _)", valid_jwt_token);
 
-    let user = get_with_user_id(&valid_jwt_token, db).await?;
+    let user = get_by_id(&valid_jwt_token.jwt_claims.user_id, db).await?;
     let result = validate_totp_for_user(&user, &config, &validate_totp_request)?;
 
     Ok(Json(result))

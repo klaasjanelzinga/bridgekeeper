@@ -98,36 +98,80 @@ impl Display for ValidJwtToken {
     }
 }
 
+#[derive(Debug)]
+pub struct ValidJwtTokenWithOtpChallengeOk {
+    pub jwt_claims: JwtClaims,
+}
+
+impl Display for ValidJwtTokenWithOtpChallengeOk {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        f.debug_struct("ValidJwtTokenWithOtpChallengeOk")
+            .field("claims", &self.jwt_claims)
+            .finish()
+    }
+}
+
+fn decode_token_to_claims(token: &str, decoding_key: &DecodingKey) -> Result<JwtClaims, ErrorKind> {
+    trace!("Validating jwt token {}", token);
+    if !token.starts_with("Bearer ") {
+        return Err(TokenInvalid);
+    }
+    let token_message = decode::<JwtClaims>(
+        &token[7..token.len()],
+        decoding_key,
+        &Validation::new(Algorithm::HS256),
+    );
+    match token_message {
+        Ok(token_data) => Ok(token_data.claims),
+        Err(_) => Err(TokenInvalid),
+    }
+}
+
 #[rocket::async_trait]
 impl<'r> FromRequest<'r> for ValidJwtToken {
     type Error = ErrorKind;
 
     async fn from_request(req: &'r Request<'_>) -> Outcome<Self, Self::Error> {
-        fn is_valid(token: &str, decoding_key: &DecodingKey) -> Result<JwtClaims, ErrorKind> {
-            trace!("Validating jwt token {}", token);
-            if !token.starts_with("Bearer ") {
-                return Err(TokenInvalid);
-            }
-            let token_message = decode::<JwtClaims>(
-                &token[7..token.len()],
-                decoding_key,
-                &Validation::new(Algorithm::HS256),
-            );
-            match token_message {
-                Ok(token_data) => Ok(token_data.claims),
-                Err(_) => Err(TokenInvalid),
-            }
-        }
-
         let config = req.rocket().state::<Config>().unwrap();
 
         match req.headers().get_one("Authorization") {
             None => Outcome::Failure((Status::Unauthorized, ErrorKind::NoTokenFound)),
             Some(key) => {
-                let check_key = is_valid(key, &config.decoding_key);
+                let check_key = decode_token_to_claims(key, &config.decoding_key);
                 match check_key {
-                    Ok(claims) => Outcome::Success(ValidJwtToken { jwt_claims: claims }),
+                    Ok(claims) => {
+                        if claims.requires_otp_challenge {
+                            Outcome::Failure((
+                                Status::Forbidden,
+                                ErrorKind::OtpAuthorizationRequired,
+                            ))
+                        } else {
+                            Outcome::Success(ValidJwtToken { jwt_claims: claims })
+                        }
+                    }
                     Err(_) => Outcome::Failure((Status::Unauthorized, ErrorKind::TokenInvalid)),
+                }
+            }
+        }
+    }
+}
+
+#[rocket::async_trait]
+impl<'r> FromRequest<'r> for ValidJwtTokenWithOtpChallengeOk {
+    type Error = ErrorKind;
+
+    async fn from_request(req: &'r Request<'_>) -> Outcome<Self, Self::Error> {
+        let config = req.rocket().state::<Config>().unwrap();
+
+        match req.headers().get_one("Authorization") {
+            None => Outcome::Failure((Status::Unauthorized, ErrorKind::NoTokenFound)),
+            Some(key) => {
+                let check_key = decode_token_to_claims(key, &config.decoding_key);
+                match check_key {
+                    Ok(claims) => {
+                        Outcome::Success(ValidJwtTokenWithOtpChallengeOk { jwt_claims: claims })
+                    }
+                    Err(_) => Outcome::Failure((Status::Forbidden, ErrorKind::TokenInvalid)),
                 }
             }
         }

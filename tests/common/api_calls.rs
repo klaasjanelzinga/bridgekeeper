@@ -1,6 +1,6 @@
 use crate::common::create_user_request;
 use bridgekeeper_api::authorization::{
-    AddAuthorizationRequest, Authorization, IsAuthorizedRequest, IsAuthorizedResponse,
+    create, AddAuthorizationRequest, Authorization, IsAuthorizedRequest, IsAuthorizedResponse,
 };
 use bridgekeeper_api::avatar::{GetAvatarResponse, UpdateAvatarRequest, UpdateAvatarResponse};
 use bridgekeeper_api::user::{
@@ -10,6 +10,7 @@ use bridgekeeper_api::user::{
 use bridgekeeper_api::user_totp::{
     ConfirmTotpResponse, StartTotpRegistrationResult, ValidateTotpRequest,
 };
+use mongodb::Database;
 use rocket::http::{Header, Status};
 use rocket::local::asynchronous::Client;
 
@@ -23,6 +24,7 @@ pub struct CreateAndLoginData {
     pub display_name: Option<String>,
 }
 
+#[allow(dead_code)]
 pub async fn create_and_login_user(client: &Client) -> CreateAndLoginData {
     let create_user_request = create_user_request();
     let created_user = create_user(client, &create_user_request)
@@ -47,6 +49,23 @@ pub async fn create_and_login_user(client: &Client) -> CreateAndLoginData {
         last_name: create_user_request.last_name,
         display_name: create_user_request.display_name,
     };
+}
+
+/// Create an admin user. That is a user with full access on application bridgekeeper.
+#[allow(dead_code)]
+pub async fn create_and_login_admin_user(client: &Client, db: &Database) -> CreateAndLoginData {
+    let create_and_login_data = create_and_login_user(client).await;
+    let authorize_admin_request = AddAuthorizationRequest {
+        for_user_id: create_and_login_data.user_id.clone(),
+        application: String::from("bridgekeeper"),
+        method_regex: String::from(".*"),
+        uri_regex: String::from(".*"),
+    };
+
+    let result = create(&authorize_admin_request, db).await;
+    assert!(result.is_ok());
+
+    return create_and_login_data;
 }
 
 /// Create the user.

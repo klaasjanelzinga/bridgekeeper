@@ -2,7 +2,7 @@
 extern crate log;
 
 use crate::common::api_calls::{
-    confirm_totp, create_and_login_user, get_user, start_totp, validate_totp,
+    confirm_totp, create_and_login_user, get_avatar, get_user, start_totp, validate_totp,
 };
 use bridgekeeper_api::jwt::JwtClaims;
 use common::api_calls::login;
@@ -88,6 +88,10 @@ async fn test_totp_flow() {
 
     // Token cannot be used anywhere else since an otp challenge is required.
     let failing_api_call = get_user(&test_fixtures.client, &second_login.token).await;
+    assert!(failing_api_call.is_err());
+    assert_eq!(failing_api_call.err().unwrap(), Status::Forbidden);
+
+    let failing_api_call = get_avatar(&test_fixtures.client, &second_login.token).await;
     assert!(failing_api_call.is_err());
     assert_eq!(failing_api_call.err().unwrap(), Status::Forbidden);
 

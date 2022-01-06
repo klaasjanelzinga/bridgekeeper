@@ -8,7 +8,8 @@ use rocket::futures::TryStreamExt;
 use rocket::serde::{Deserialize, Serialize};
 
 use crate::errors::ErrorKind;
-use crate::user::User;
+use crate::jwt::ValidJwtToken;
+use crate::user::{get_with_user_id, User};
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(crate = "rocket::serde")]
@@ -117,36 +118,56 @@ pub async fn create(
     Ok(authorization)
 }
 
-pub async fn is_user_authorized_for(
-    user: &User,
-    is_authorized_request: &IsAuthorizedRequest,
+/// Check if the user with this token has access to the application / method / uri.
+///
+/// ## Params:
+/// - valid_jwt_token - The token to check the authorization for.
+/// - application - The application for which authorization is requested.
+/// - method - The method (GET, POST, etc) for which authorization is requested.
+/// - uri - The uri for which authorization is requested.
+///
+/// ## Returns:
+/// If the user has authorization for the resource 'true' is returned.
+/// - ErrorKind::NotAuthorized - if no authorization is found.
+pub async fn is_token_authorized_for(
+    valid_jwt_token: &ValidJwtToken,
+    application: &str,
+    method: &str,
+    uri: &str,
     db: &Database,
-) -> Result<bool, ErrorKind> {
+) -> Result<User, ErrorKind> {
     trace!(
-        "is_user_authorized_for({}, {}, _)",
-        user,
-        is_authorized_request
+        "is_token_authorized_for({}, {}, {}, {})",
+        valid_jwt_token,
+        application,
+        method,
+        uri
     );
     let collection = authorization_collection(db);
-    let mut authorization_records = collection
-        .find(
-            doc! {
-                "user_id": user.user_id.clone(),
-                "application": is_authorized_request.application.clone(),
-            },
-            None,
-        )
-        .await?;
-    while let Some(authorization) = authorization_records.try_next().await? {
-        let uri_regex = Regex::new(&authorization.uri_regex).unwrap();
-        let method_regex = Regex::new(&authorization.method_regex).unwrap();
+    match get_with_user_id(valid_jwt_token, db).await {
+        Ok(user) => {
+            let mut authorization_records = collection
+                .find(
+                    doc! {
+                        "user_id": user.user_id.clone(),
+                        "application": application,
+                    },
+                    None,
+                )
+                .await?;
+            while let Some(authorization) = authorization_records.try_next().await? {
+                let uri_regex = Regex::new(&authorization.uri_regex).unwrap();
+                let method_regex = Regex::new(&authorization.method_regex).unwrap();
 
-        // application is matched, user_id is matched.
-        let uri_is_matched = uri_regex.is_match(&is_authorized_request.uri);
-        let method_is_matched = method_regex.is_match(&is_authorized_request.method);
-        if uri_is_matched && method_is_matched {
-            return Ok(true);
+                // application is matched, user_id is matched.
+                let uri_is_matched = uri_regex.is_match(&uri);
+                let method_is_matched = method_regex.is_match(&method);
+                if uri_is_matched && method_is_matched {
+                    return Ok(user);
+                }
+            }
+            Err(ErrorKind::NotAuthorized)
         }
+        Err(_) => Err(ErrorKind::NotAuthorized),
     }
-    Err(ErrorKind::NotAuthorized)
 }

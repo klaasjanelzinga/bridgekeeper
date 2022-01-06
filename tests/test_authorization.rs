@@ -1,73 +1,56 @@
 #[macro_use]
 extern crate log;
 
-use crate::common::api_calls::{add_authorization, create_and_login_user, is_authorized};
-use bridgekeeper_api::authorization::{create, AddAuthorizationRequest, IsAuthorizedRequest};
+use crate::common::api_calls::{
+    add_authorization, create_and_login_admin_user, create_and_login_user, is_authorized,
+};
+use bridgekeeper_api::authorization::{AddAuthorizationRequest, IsAuthorizedRequest};
 use rocket::http::Status;
 
 mod common;
 
+/// Test the authorization process.
+///
+/// - Create an admin user (someone with privileges on bridgekeeper).
+/// - Create a regular user.
+/// - The admin user gives the regular user some privileges and these are validated.
 #[rocket::async_test]
 async fn test_authorization() {
     let test_fixtures = common::setup().await;
     common::empty_users_collection(&test_fixtures.db).await;
 
     let regular_user = create_and_login_user(&test_fixtures.client).await;
-    let admin_user = create_and_login_user(&test_fixtures.client).await;
-
-    // bootstrap admin privileges on the admin_user
-    let authorize_admin_request = AddAuthorizationRequest {
-        for_user_id: admin_user.user_id.clone(),
-        application: String::from("bridgekeeper"),
-        method_regex: String::from(".*"),
-        uri_regex: String::from(".*"),
-    };
-    let result = create(&authorize_admin_request, &test_fixtures.db).await;
-    assert!(result.is_ok());
+    let admin_user = create_and_login_admin_user(&test_fixtures.client, &test_fixtures.db).await;
 
     // add authorization through api for regular user. Can only:
     // - GET /netherlands/gro.*
     // - POST /germany/berlin
     // - DELETE|PUT /belgium/ant.*
-    let regular_privileges_netherlands = AddAuthorizationRequest {
-        for_user_id: regular_user.user_id.clone(),
-        application: String::from("news"),
-        method_regex: String::from("GET"),
-        uri_regex: String::from("/netherlands/gro.*"),
-    };
-    let regular_privileges_germany = AddAuthorizationRequest {
-        for_user_id: regular_user.user_id.clone(),
-        application: String::from("news"),
-        method_regex: String::from("POST"),
-        uri_regex: String::from("/germany/berlin"),
-    };
-    let regular_privileges_belgium = AddAuthorizationRequest {
-        for_user_id: regular_user.user_id.clone(),
-        application: String::from("news"),
-        method_regex: String::from("(DELETE)|(PUT)"),
-        uri_regex: String::from("/belgium/ant.*"),
-    };
-    let auth_result = add_authorization(
-        &test_fixtures.client,
-        &admin_user.token,
-        &regular_privileges_netherlands,
-    )
-    .await;
-    assert!(auth_result.is_ok());
-    let auth_result = add_authorization(
-        &test_fixtures.client,
-        &admin_user.token,
-        &regular_privileges_belgium,
-    )
-    .await;
-    assert!(auth_result.is_ok());
-    let auth_result = add_authorization(
-        &test_fixtures.client,
-        &admin_user.token,
-        &regular_privileges_germany,
-    )
-    .await;
-    assert!(auth_result.is_ok());
+    let regular_priviliges = [
+        AddAuthorizationRequest {
+            for_user_id: regular_user.user_id.clone(),
+            application: String::from("news"),
+            method_regex: String::from("GET"),
+            uri_regex: String::from("/netherlands/gro.*"),
+        },
+        AddAuthorizationRequest {
+            for_user_id: regular_user.user_id.clone(),
+            application: String::from("news"),
+            method_regex: String::from("POST"),
+            uri_regex: String::from("/germany/berlin"),
+        },
+        AddAuthorizationRequest {
+            for_user_id: regular_user.user_id.clone(),
+            application: String::from("news"),
+            method_regex: String::from("(DELETE)|(PUT)"),
+            uri_regex: String::from("/belgium/ant.*"),
+        },
+    ];
+    for regular_privilege in regular_priviliges {
+        let auth_result =
+            add_authorization(&test_fixtures.client, &admin_user.token, &regular_privilege).await;
+        assert!(auth_result.is_ok());
+    }
 
     let valid_authentications = [
         IsAuthorizedRequest {
@@ -140,6 +123,46 @@ async fn test_authorization() {
         assert!(is_authorized_response.is_err());
         assert_eq!(is_authorized_response.err().unwrap(), Status::Unauthorized);
     }
+
+    ()
+}
+
+#[rocket::async_test]
+async fn test_add_authorization() {
+    let test_fixtures = common::setup().await;
+    common::empty_users_collection(&test_fixtures.db).await;
+
+    let regular_user = create_and_login_user(&test_fixtures.client).await;
+    let admin_user = create_and_login_admin_user(&test_fixtures.client, &test_fixtures.db).await;
+
+    // regular user cannot give privileges
+    let result = add_authorization(
+        &test_fixtures.client,
+        &regular_user.token,
+        &AddAuthorizationRequest {
+            for_user_id: regular_user.user_id.clone(),
+            application: "bridgekeeper".to_string(),
+            uri_regex: ".*".to_string(),
+            method_regex: ".*".to_string(),
+        },
+    )
+    .await;
+    assert!(result.is_err());
+    assert_eq!(result.err().unwrap(), Status::Unauthorized);
+
+    // admin_user can.
+    let result = add_authorization(
+        &test_fixtures.client,
+        &admin_user.token,
+        &AddAuthorizationRequest {
+            for_user_id: admin_user.user_id.clone(),
+            application: "bridgekeeper".to_string(),
+            uri_regex: ".*".to_string(),
+            method_regex: ".*".to_string(),
+        },
+    )
+    .await;
+    assert!(result.is_ok());
 
     ()
 }

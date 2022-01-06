@@ -5,7 +5,7 @@ dev-infra-down:
 	docker-compose --env-file etc/dev.env down
 
 test:
-	cargo test
+	RUST_BACKTRACE=1 cargo test
 
 format:
 	cargo fmt --all

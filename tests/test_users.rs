@@ -8,11 +8,9 @@ use rocket::http::Status;
 
 use bridgekeeper_api::jwt::JwtClaims;
 use bridgekeeper_api::user::{LoginRequest, UpdateUserRequest};
-use common::api_calls::{
-    change_password, create_and_login_user, create_user, get_user, login, update_user,
-};
+use common::api_calls::{change_password, create_user, get_user, login, update_user};
 
-use crate::common::fake_password;
+use crate::common::fixtures::{create_and_login_user, create_user_request, fake_password};
 
 mod common;
 
@@ -49,7 +47,7 @@ async fn test_create_user() {
     let test_fixtures = common::setup().await;
     common::empty_users_collection(&test_fixtures.db).await;
 
-    let create_user_request = common::create_user_request();
+    let create_user_request = create_user_request();
     let created_user_response = create_user(&test_fixtures.client, &create_user_request).await;
     assert!(created_user_response.is_ok());
     let created_user = created_user_response.unwrap();

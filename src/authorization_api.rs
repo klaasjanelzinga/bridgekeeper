@@ -8,17 +8,17 @@ use rocket::serde::json::Json;
 use rocket::State;
 
 use crate::authorization::create;
-use crate::jwt::ValidJwtToken;
+use crate::jwt::{AuthenticatedUser, ValidJwtToken};
 
 #[post("/user/authorization", data = "<add_authorization_request>")]
 pub async fn add_authorization(
     add_authorization_request: Json<AddAuthorizationRequest>,
     db: &State<Database>,
-    valid_jwt_token: ValidJwtToken,
+    authenticated_user: AuthenticatedUser,
 ) -> Result<Json<Authorization>, Status> {
-    trace!("add_authorization(_, _, {})", valid_jwt_token);
+    trace!("add_authorization(_, _, {})", authenticated_user);
     is_token_authorized_for(
-        &valid_jwt_token,
+        &authenticated_user.valid_jwt_token,
         "bridgekeeper",
         "POST",
         "/user/authorization",

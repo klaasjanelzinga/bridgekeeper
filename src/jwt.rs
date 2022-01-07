@@ -2,9 +2,13 @@ use std::fmt::{Display, Formatter};
 
 use chrono::Utc;
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
+use mongodb::Database;
 use rocket::http::Status;
+use rocket::outcome::Outcome::Success;
 use rocket::request::{FromRequest, Outcome, Request};
 use rocket::serde::{Deserialize, Serialize};
+use rocket::State;
+use crate::authorization::is_token_authorized_for;
 
 use crate::config::Config;
 use crate::errors::ErrorKind;
@@ -175,5 +179,51 @@ impl<'r> FromRequest<'r> for ValidJwtTokenWithOtpChallengeOk {
                 }
             }
         }
+    }
+}
+
+
+#[derive(Debug)]
+pub struct AuthenticatedUser {
+    pub user: User,
+    pub valid_jwt_token: ValidJwtToken,
+}
+
+impl Display for AuthenticatedUser {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        f.debug_struct("AuthenticatedUser")
+            .field("user", &self.user)
+            .finish()
+    }
+}
+
+#[rocket::async_trait]
+impl<'r> FromRequest<'r> for AuthenticatedUser {
+    type Error = ErrorKind;
+
+    async fn from_request(
+        req: &'r Request<'_>,
+    ) -> Outcome<Self, Self::Error> {
+        let db = req.rocket().state::<Database>().unwrap();
+        let config = req.rocket().state::<Config>().unwrap();
+        let unvalidated_token = req.guard::<ValidJwtToken>().await;
+        match unvalidated_token {
+            Success(token) => {
+                let is_authorized = is_token_authorized_for(
+                    &token,
+                    &config.application_name,
+                    &req.method().as_str(),
+                    &req.uri().path().as_str(),
+                    db
+                ).await;
+                match is_authorized {
+                    Ok(user) =>
+                       Outcome::Success(AuthenticatedUser { user: user, valid_jwt_token: token }),
+                    Err(_) => Outcome::Failure((Status::Unauthorized, ErrorKind::NotAuthorized))
+                }
+            },
+            _ => Outcome::Failure((Status::Unauthorized, ErrorKind::NotAuthorized))
+        }
+
     }
 }

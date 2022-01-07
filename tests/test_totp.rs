@@ -1,15 +1,17 @@
 #[macro_use]
 extern crate log;
 
-use crate::common::api_calls::{
-    confirm_totp, create_and_login_user, get_avatar, get_user, start_totp, validate_totp,
-};
-use bridgekeeper_api::jwt::JwtClaims;
-use common::api_calls::login;
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use jsonwebtoken::{decode, Algorithm, Validation};
 use rocket::http::Status;
-use std::time::{SystemTime, UNIX_EPOCH};
 use totp_lite::{totp, Sha512};
+
+use bridgekeeper_api::jwt::JwtClaims;
+use common::api_calls::login;
+
+use crate::common::api_calls::{confirm_totp, get_avatar, get_user, start_totp, validate_totp};
+use crate::common::fixtures::{calculate_totp_value, create_and_login_user};
 
 mod common;
 
@@ -54,17 +56,14 @@ async fn test_totp_flow() {
         8
     );
 
-    // Calculate a TOTP for the secret.
-    let seconds: u64 = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-    let totp_value = totp::<Sha512>(registration_response_data.secret.as_bytes(), seconds);
-
     // Confirm the totp with the calculated OTP.
-    let confirm_response = confirm_totp(&test_fixtures.client, &login_data.token, &totp_value)
-        .await
-        .unwrap();
+    let confirm_response = confirm_totp(
+        &test_fixtures.client,
+        &login_data.token,
+        &calculate_totp_value(&registration_response_data.secret),
+    )
+    .await
+    .unwrap();
     assert_eq!(confirm_response.success, true);
 
     // second login with a required OTP challenge. Should Ok with a token that is only valid for OTP.
@@ -96,8 +95,12 @@ async fn test_totp_flow() {
     assert_eq!(failing_api_call.err().unwrap(), Status::Forbidden);
 
     // validate the otp
-    let validated_totp_response =
-        validate_totp(&test_fixtures.client, &login_data.token, &totp_value).await;
+    let validated_totp_response = validate_totp(
+        &test_fixtures.client,
+        &login_data.token,
+        &calculate_totp_value(&registration_response_data.secret),
+    )
+    .await;
     assert_ne!(validated_totp_response.token, second_login.token);
 
     // dissect the token.

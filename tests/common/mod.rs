@@ -1,22 +1,19 @@
-pub mod api_calls;
-
 use std::env;
-use std::fmt::Display;
-
-use log::LevelFilter;
-use mongodb::Database;
-
-use bridgekeeper_api::config::Config;
-use bridgekeeper_api::user::{CreateUserRequest, User};
-use fake::faker::internet::en::{Password, SafeEmail};
-use fake::faker::name::en::{FirstName, LastName, Name};
-use fake::Fake;
-use rocket::local::asynchronous::Client;
 use std::io::Write;
 use std::sync::Once;
 use std::thread::current;
 use std::time::Duration;
+
+use log::LevelFilter;
+use mongodb::Database;
+use rocket::local::asynchronous::Client;
 use tokio::time::sleep;
+
+use bridgekeeper_api::config::Config;
+use bridgekeeper_api::user::User;
+
+pub mod api_calls;
+pub mod fixtures;
 
 pub struct TestFixtures<'a> {
     pub db: Database,
@@ -108,28 +105,4 @@ pub async fn empty_users_collection(db: &Database) {
     }
 
     ()
-}
-
-pub fn given<R, T>(given_text: &str, func: T) -> R
-where
-    T: Fn() -> R,
-    R: Display,
-{
-    let result = func();
-    trace!("GIVEN: {}; {}", given_text, result);
-    result
-}
-
-pub fn fake_password() -> String {
-    format!("Rr$3-{}", Password(10..15).fake::<String>())
-}
-
-pub fn create_user_request() -> CreateUserRequest {
-    given("CreateUserRequest to create", || CreateUserRequest {
-        email_address: SafeEmail().fake::<String>(),
-        first_name: FirstName().fake(),
-        last_name: LastName().fake(),
-        display_name: Name().fake(),
-        new_password: fake_password(),
-    })
 }

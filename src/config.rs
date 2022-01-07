@@ -10,6 +10,7 @@ pub struct Config<'a> {
     pub environment: String,
     pub decoding_key: DecodingKey<'a>,
     pub encoding_key: EncodingKey,
+    pub application_name: String,
 }
 
 fn os_var_as_string(var: &str) -> String {
@@ -49,6 +50,7 @@ impl Config<'_> {
             mongo_db,
             decoding_key,
             encoding_key,
+            application_name: "bridgekeeper".to_string(),
         }
     }
 }
@@ -60,6 +62,7 @@ impl Display for Config<'_> {
             .field("mongo_pass", &self.mongo_url)
             .field("environment", &self.environment)
             .field("mongo_url", &self.masked_mongo_url)
+            .field("application_name", &self.application_name)
             .finish()
     }
 }

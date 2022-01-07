@@ -1,11 +1,12 @@
 #[macro_use]
 extern crate log;
 
-use crate::common::api_calls::{
-    add_authorization, create_and_login_admin_user, create_and_login_user, is_authorized,
-};
-use bridgekeeper_api::authorization::{AddAuthorizationRequest, IsAuthorizedRequest};
 use rocket::http::Status;
+
+use bridgekeeper_api::authorization::{AddAuthorizationRequest, IsAuthorizedRequest};
+
+use crate::common::api_calls::{add_authorization, is_authorized};
+use crate::common::fixtures::{create_and_login_admin_user, create_and_login_user};
 
 mod common;
 
@@ -127,6 +128,10 @@ async fn test_authorization() {
     ()
 }
 
+/// A user cannot add authorization for himself:
+/// - Create a regular user and an admin user.
+/// - Regular user cannot give privileges.
+/// - Admin user can give privileges.
 #[rocket::async_test]
 async fn test_add_authorization() {
     let test_fixtures = common::setup().await;

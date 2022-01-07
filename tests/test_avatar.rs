@@ -1,13 +1,14 @@
 #[macro_use]
 extern crate log;
 
-use crate::common::api_calls::{
-    create_and_login_user, create_or_update_avatar, delete_avatar, get_avatar,
-};
-use bridgekeeper_api::avatar::UpdateAvatarRequest;
 use fake::faker::lorem::en::Paragraphs;
 use fake::Fake;
 use rocket::http::Status;
+
+use bridgekeeper_api::avatar::UpdateAvatarRequest;
+
+use crate::common::api_calls::{create_or_update_avatar, delete_avatar, get_avatar};
+use crate::common::fixtures::create_and_login_user;
 
 mod common;
 

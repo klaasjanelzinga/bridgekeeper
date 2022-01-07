@@ -9,10 +9,13 @@ test:
 
 format:
 	cargo fmt --all
+	cargo check
+	cargo check --tests
 
 check:
 	cargo fmt --all -- --check
 	cargo check
+	cargo check --tests
 
 build-release:
 	cargo build --release

@@ -5,11 +5,10 @@ use rocket::serde::json::Json;
 use rocket::State;
 
 use crate::config::Config;
-use crate::jwt::{ValidJwtToken, ValidJwtTokenWithOtpChallengeOk};
+use crate::request_guards::{JwtToken, OtpValidatedJwtToken};
 use crate::user::{
-    change_password_for_user, create, get_by_id, get_with_user_id, update, ChangePasswordRequest,
-    ChangePasswordResponse, CreateUserRequest, GetUserResponse, LoginRequest, LoginResponse,
-    UpdateUserRequest,
+    change_password_for_user, create, update, ChangePasswordRequest, ChangePasswordResponse,
+    CreateUserRequest, GetUserResponse, LoginRequest, LoginResponse, UpdateUserRequest,
 };
 use crate::user_totp::{
     confirm_totp_code_for_user, start_totp_registration_for_user, validate_totp_for_user,
@@ -18,27 +17,24 @@ use crate::user_totp::{
 
 #[get("/user")]
 pub async fn get_user(
-    db: &State<Database>,
-    valid_jwt_token: ValidJwtToken,
+    valid_jwt_token: OtpValidatedJwtToken,
 ) -> Result<Json<GetUserResponse>, Status> {
     trace!("get_user(_, {})", valid_jwt_token);
-    let user = get_with_user_id(&valid_jwt_token, db).await?;
-    Ok(Json(GetUserResponse::from(&user)))
+    Ok(Json(GetUserResponse::from(&valid_jwt_token.user)))
 }
 
 #[put("/user", data = "<update_request>")]
 pub async fn update_user(
     update_request: Json<UpdateUserRequest>,
     db: &State<Database>,
-    valid_jwt_token: ValidJwtToken,
+    valid_jwt_token: OtpValidatedJwtToken,
 ) -> Result<Json<GetUserResponse>, Status> {
     trace!(
         "update_user(db, {}, {})",
         update_request.user_id,
         valid_jwt_token
     );
-    let user = get_with_user_id(&valid_jwt_token, db).await?;
-    let update_response = update(&user, &update_request, &db).await?;
+    let update_response = update(&valid_jwt_token.user, &update_request, &db).await?;
     Ok(Json(update_response))
 }
 
@@ -72,36 +68,34 @@ pub async fn login(
 #[post("/user/change-password", data = "<change_password_request>")]
 pub async fn change_password(
     change_password_request: Json<ChangePasswordRequest>,
-    valid_jwt_token: ValidJwtToken,
+    valid_jwt_token: OtpValidatedJwtToken,
     db: &State<Database>,
 ) -> Result<Json<ChangePasswordResponse>, Status> {
     trace!("change_password(_, {}, _)", valid_jwt_token);
-    let user = get_with_user_id(&valid_jwt_token, db).await?;
-    let result = change_password_for_user(&user, &change_password_request, db).await?;
+    let result =
+        change_password_for_user(&valid_jwt_token.user, &change_password_request, db).await?;
     Ok(Json(result))
 }
 
 #[post("/user/start-totp-registration")]
 pub async fn start_totp_registration(
-    valid_jwt_token: ValidJwtToken,
+    jwt_token: JwtToken,
     db: &State<Database>,
 ) -> Result<Json<StartTotpRegistrationResult>, Status> {
-    trace!("start_totp_registration({}, _)", valid_jwt_token);
-    let user = get_with_user_id(&valid_jwt_token, db).await?;
-    let result = start_totp_registration_for_user(&user, db).await?;
+    trace!("start_totp_registration({}, _)", jwt_token);
+    let result = start_totp_registration_for_user(&jwt_token.user, db).await?;
     Ok(Json(result))
 }
 
 #[post("/user/confirm-totp-registration", data = "<validate_totp_request>")]
 pub async fn confirm_totp_registration(
     validate_totp_request: Json<ValidateTotpRequest>,
-    valid_jwt_token: ValidJwtToken,
+    jwt_token: JwtToken,
     db: &State<Database>,
 ) -> Result<Json<ConfirmTotpResponse>, Status> {
-    trace!("confirm_totp_registration({}, _)", valid_jwt_token);
+    trace!("confirm_totp_registration({}, _)", jwt_token);
 
-    let user = get_with_user_id(&valid_jwt_token, db).await?;
-    let result = confirm_totp_code_for_user(&user, &validate_totp_request, db).await?;
+    let result = confirm_totp_code_for_user(&jwt_token.user, &validate_totp_request, db).await?;
 
     Ok(Json(result))
 }
@@ -110,13 +104,10 @@ pub async fn confirm_totp_registration(
 pub async fn validate_totp(
     config: &State<Config<'_>>,
     validate_totp_request: Json<ValidateTotpRequest>,
-    valid_jwt_token: ValidJwtTokenWithOtpChallengeOk,
-    db: &State<Database>,
+    jwt_token: JwtToken,
 ) -> Result<Json<LoginResponse>, Status> {
-    trace!("validate_totp({}, _)", valid_jwt_token);
+    trace!("validate_totp({}, _)", jwt_token);
 
-    let user = get_by_id(&valid_jwt_token.jwt_claims.user_id, db).await?;
-    let result = validate_totp_for_user(&user, &config, &validate_totp_request)?;
-
+    let result = validate_totp_for_user(&jwt_token.user, &config, &validate_totp_request)?;
     Ok(Json(result))
 }

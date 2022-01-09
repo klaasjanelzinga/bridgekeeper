@@ -9,7 +9,6 @@ use crate::config::Config;
 use crate::errors::ErrorKind;
 use crate::errors::ErrorKind::EntityNotFound;
 use crate::jwt;
-use crate::jwt::ValidJwtToken;
 use crate::util::{create_id, random_string};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -261,27 +260,6 @@ pub async fn update_user(db_user: &User, db: &Database) -> Result<bool, ErrorKin
         });
     }
     Ok(true)
-}
-
-/// Finds the user for the given id and token.
-///
-/// ## Args:
-/// - valid_jwt_token: A valid jwt token. The user id will be validated from the token to the second arg.
-/// - db: The mongo database instance.
-///
-/// ## Returns:
-/// User with the given email address or an Error.
-/// - EntityNotFound - No user exists for the email address.
-/// - MongoDbError - Something is off with mongo.
-pub async fn get_with_user_id(
-    valid_jwt_token: &ValidJwtToken,
-    db: &Database,
-) -> Result<User, ErrorKind> {
-    trace!("get_with_user_id(({}, _)", valid_jwt_token);
-    if valid_jwt_token.jwt_claims.requires_otp_challenge {
-        return Err(ErrorKind::OtpAuthorizationRequired);
-    }
-    get_by_id(&valid_jwt_token.jwt_claims.user_id, db).await
 }
 
 /// Fetches the user entity by email_address. Returns EntityNotFound if not found.

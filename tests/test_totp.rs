@@ -88,11 +88,11 @@ async fn test_totp_flow() {
     // Token cannot be used anywhere else since an otp challenge is required.
     let failing_api_call = get_user(&test_fixtures.client, &second_login.token).await;
     assert!(failing_api_call.is_err());
-    assert_eq!(failing_api_call.err().unwrap(), Status::Forbidden);
+    assert_eq!(failing_api_call.err().unwrap(), Status::Unauthorized);
 
     let failing_api_call = get_avatar(&test_fixtures.client, &second_login.token).await;
     assert!(failing_api_call.is_err());
-    assert_eq!(failing_api_call.err().unwrap(), Status::Forbidden);
+    assert_eq!(failing_api_call.err().unwrap(), Status::Unauthorized);
 
     // validate the otp
     let validated_totp_response = validate_totp(

@@ -3,11 +3,13 @@ use rocket::local::asynchronous::Client;
 
 use bridgekeeper_api::authorization::{
     AddAuthorizationRequest, Authorization, IsAuthorizedRequest, IsAuthorizedResponse,
+    IsJwtApiTokenValidRequest,
 };
 use bridgekeeper_api::avatar::{GetAvatarResponse, UpdateAvatarRequest, UpdateAvatarResponse};
+use bridgekeeper_api::jwt::{CreateJwtApiRequest, CreateJwtApiResponse};
 use bridgekeeper_api::user::{
-    ChangePasswordRequest, ChangePasswordResponse, CreateUserRequest, GetUserResponse,
-    LoginRequest, LoginResponse, UpdateUserRequest,
+    ChangePasswordRequest, ChangePasswordResponse, CreateUserRequest, EmptyOkResponse,
+    GetUserResponse, LoginRequest, LoginResponse, UpdateUserRequest,
 };
 use bridgekeeper_api::user_totp::{
     ConfirmTotpResponse, StartTotpRegistrationResult, ValidateTotpRequest,
@@ -223,7 +225,7 @@ pub async fn add_authorization(
     add_authorization_request: &AddAuthorizationRequest,
 ) -> Result<Authorization, Status> {
     let response = client
-        .post("/user/authorization")
+        .post("/authorization")
         .json(add_authorization_request)
         .header(Header::new("Authorization", format!("Bearer {}", token)))
         .dispatch()
@@ -242,8 +244,66 @@ pub async fn is_authorized(
     is_authorized_request: &IsAuthorizedRequest,
 ) -> Result<IsAuthorizedResponse, Status> {
     let response = client
-        .post("/user/is_authorized")
+        .post("/authorization/user")
         .json(is_authorized_request)
+        .header(Header::new("Authorization", format!("Bearer {}", token)))
+        .dispatch()
+        .await;
+    if response.status() == Status::Ok {
+        return Ok(serde_json::from_str(&response.into_string().await.unwrap()).unwrap());
+    }
+    Err(response.status())
+}
+
+/// Create a jwt-api token.
+#[allow(dead_code)]
+pub async fn create_jwt_api(
+    client: &Client,
+    token: &str,
+    public_token_id: &str,
+) -> Result<CreateJwtApiResponse, Status> {
+    let response = client
+        .post("/user/jwt-api-token")
+        .json(&CreateJwtApiRequest {
+            public_token_id: public_token_id.to_string(),
+        })
+        .header(Header::new("Authorization", format!("Bearer {}", token)))
+        .dispatch()
+        .await;
+    if response.status() == Status::Ok {
+        return Ok(serde_json::from_str(&response.into_string().await.unwrap()).unwrap());
+    }
+    Err(response.status())
+}
+
+/// Check a jwt-api token.
+#[allow(dead_code)]
+pub async fn is_jwt_api_valid(
+    client: &Client,
+    jwt_api_token: &str,
+) -> Result<IsAuthorizedResponse, Status> {
+    let response = client
+        .post("/authorization/jwt-api-token")
+        .json(&IsJwtApiTokenValidRequest {
+            token: jwt_api_token.to_string(),
+        })
+        .dispatch()
+        .await;
+    if response.status() == Status::Ok {
+        return Ok(serde_json::from_str(&response.into_string().await.unwrap()).unwrap());
+    }
+    Err(response.status())
+}
+
+/// Delete a jwt-api token.
+#[allow(dead_code)]
+pub async fn delete_jwt_api_token(
+    client: &Client,
+    token: &str,
+    public_token_id: &str,
+) -> Result<EmptyOkResponse, Status> {
+    let response = client
+        .delete(format!("/user/jwt-api-token/{}", public_token_id))
         .header(Header::new("Authorization", format!("Bearer {}", token)))
         .dispatch()
         .await;

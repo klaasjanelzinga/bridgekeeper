@@ -5,7 +5,9 @@ use rocket::http::Status;
 
 use bridgekeeper_api::authorization::{AddAuthorizationRequest, IsAuthorizedRequest};
 
-use crate::common::api_calls::{add_authorization, is_authorized};
+use crate::common::api_calls::{
+    add_authorization, create_jwt_api, delete_jwt_api_token, is_authorized, is_jwt_api_valid,
+};
 use crate::common::fixtures::{create_and_login_admin_user, create_and_login_user};
 
 mod common;
@@ -168,6 +170,33 @@ async fn test_add_authorization() {
     )
     .await;
     assert!(result.is_ok());
+
+    ()
+}
+
+/// Test the jwt-api token flow:
+/// - Create a jwt-api token for a certain api.
+/// - Check if the is_authorized works for the jwt-api-token.
+/// - Delete the jwt-api token for the api.
+/// - The is_authorized returns Not-authorized.
+#[rocket::async_test]
+async fn test_jwt_api_token_flow() {
+    let test_fixtures = common::setup().await;
+    common::empty_users_collection(&test_fixtures.db).await;
+
+    let regular_user = create_and_login_user(&test_fixtures.client).await;
+
+    let result = create_jwt_api(&test_fixtures.client, &regular_user.token, "api")
+        .await
+        .expect("Should work");
+    assert!(result.token.len() > 10);
+
+    let is_valid = is_jwt_api_valid(&test_fixtures.client, &result.token).await;
+    assert!(is_valid.is_ok());
+
+    let delete_response =
+        delete_jwt_api_token(&test_fixtures.client, &regular_user.token, "api").await;
+    assert!(delete_response.is_ok());
 
     ()
 }

@@ -1,6 +1,6 @@
 use crate::authorization::{
-    is_user_authorized_for, AddAuthorizationRequest, Authorization, IsAuthorizedRequest,
-    IsAuthorizedResponse,
+    is_jwt_api_token_valid, is_user_authorized_for, AddAuthorizationRequest, Authorization,
+    IsAuthorizedRequest, IsAuthorizedResponse, IsJwtApiTokenValidRequest,
 };
 use mongodb::Database;
 use rocket::http::Status;
@@ -9,8 +9,9 @@ use rocket::State;
 
 use crate::authorization::create;
 use crate::request_guards::{AuthenticatedUser, OtpValidatedJwtToken};
+use crate::Config;
 
-#[post("/user/authorization", data = "<add_authorization_request>")]
+#[post("/authorization", data = "<add_authorization_request>")]
 pub async fn add_authorization(
     add_authorization_request: Json<AddAuthorizationRequest>,
     db: &State<Database>,
@@ -29,7 +30,7 @@ pub async fn add_authorization(
     Ok(Json(authorization))
 }
 
-#[post("/user/is_authorized", data = "<is_authorized_request>")]
+#[post("/authorization/user", data = "<is_authorized_request>")]
 pub async fn is_authorized(
     is_authorized_request: Json<IsAuthorizedRequest>,
     db: &State<Database>,
@@ -48,6 +49,23 @@ pub async fn is_authorized(
         db,
     )
     .await?;
+
+    Ok(Json(IsAuthorizedResponse {
+        is_authorized: true,
+    }))
+}
+
+#[post(
+    "/authorization/jwt-api-token",
+    data = "<is_jwt_api_token_valid_request>"
+)]
+pub async fn is_jwt_api_valid(
+    is_jwt_api_token_valid_request: Json<IsJwtApiTokenValidRequest>,
+    db: &State<Database>,
+    config: &State<Config<'_>>,
+) -> Result<Json<IsAuthorizedResponse>, Status> {
+    trace!("is_jwt_api_valid()");
+    is_jwt_api_token_valid(&is_jwt_api_token_valid_request.token, config, db).await?;
 
     Ok(Json(IsAuthorizedResponse {
         is_authorized: true,

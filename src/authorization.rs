@@ -1,5 +1,7 @@
+use jsonwebtoken::{decode, Algorithm, Validation};
 use std::fmt::{Display, Formatter};
 
+use crate::Config;
 use mongodb::bson::doc;
 use mongodb::bson::Bson;
 use mongodb::{Collection, Database};
@@ -8,7 +10,8 @@ use rocket::futures::TryStreamExt;
 use rocket::serde::{Deserialize, Serialize};
 
 use crate::errors::ErrorKind;
-use crate::user::User;
+use crate::jwt::JwtApiClaims;
+use crate::user::{get_by_id, User};
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(crate = "rocket::serde")]
@@ -45,6 +48,18 @@ impl Display for IsAuthorizedRequest {
             .field("uri", &self.uri)
             .field("method", &self.method)
             .finish()
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(crate = "rocket::serde")]
+pub struct IsJwtApiTokenValidRequest {
+    pub token: String,
+}
+
+impl Display for IsJwtApiTokenValidRequest {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("IsJwtApiTokenValidRequest").finish()
     }
 }
 
@@ -153,4 +168,28 @@ pub async fn is_user_authorized_for(
         }
     }
     Err(ErrorKind::NotAuthorized)
+}
+
+pub async fn is_jwt_api_token_valid(
+    token: &str,
+    config: &Config<'_>,
+    db: &Database,
+) -> Result<bool, ErrorKind> {
+    let claims = decode::<JwtApiClaims>(
+        &token,
+        &config.decoding_key,
+        &Validation::new(Algorithm::HS256),
+    )
+    .expect("Should work")
+    .claims;
+
+    let user = get_by_id(&claims.user_id, db).await?;
+    let user_has_jwt_api = user.user_jwt_api_token.iter().find(|jwt_api_token| {
+        jwt_api_token.public_token_id == claims.public_token_id
+            && jwt_api_token.private_token_id == claims.private_token_id
+    });
+    match user_has_jwt_api {
+        None => Err(ErrorKind::NotAuthorized),
+        Some(_) => Ok(true),
+    }
 }

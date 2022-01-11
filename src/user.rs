@@ -13,6 +13,21 @@ use crate::util::{create_id, random_string};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(crate = "rocket::serde")]
+pub struct UserJwtApiToken {
+    pub public_token_id: String,
+    pub private_token_id: String,
+}
+
+impl Display for UserJwtApiToken {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("User")
+            .field("public_token_id", &self.public_token_id)
+            .finish()
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(crate = "rocket::serde")]
 pub struct User {
     #[serde(skip_serializing)]
     pub _id: Option<Bson>,
@@ -31,6 +46,8 @@ pub struct User {
     pub pending_backup_codes: Vec<String>,
 
     pub is_approved: bool,
+
+    pub user_jwt_api_token: Vec<UserJwtApiToken>,
 }
 
 impl Display for User {
@@ -172,6 +189,20 @@ impl Display for ChangePasswordResponse {
         f.debug_struct("ChangePasswordResponse")
             .field("success", &self.success)
             .field("error_message", &self.error_message)
+            .finish()
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(crate = "rocket::serde")]
+pub struct EmptyOkResponse {
+    pub success: bool,
+}
+
+impl Display for EmptyOkResponse {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EmptyOkResponse")
+            .field("success", &self.success)
             .finish()
     }
 }
@@ -362,6 +393,7 @@ pub async fn create(
         pending_otp_hash: None,
         pending_backup_codes: vec![],
         is_approved: false,
+        user_jwt_api_token: vec![],
     };
 
     let insert_result = collection.insert_one(&new_user, None).await?;

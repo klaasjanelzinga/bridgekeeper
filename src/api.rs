@@ -9,12 +9,12 @@ use mongodb::Client;
 use mongodb::Database;
 use rocket::{Build, Rocket};
 
-use crate::authorization_api::{add_authorization, is_authorized};
+use crate::authorization_api::{add_authorization, is_authorized, is_jwt_api_valid};
 use crate::avatar_api::{create_or_update_avatar, delete_avatar, get_avatar};
 use crate::config::Config;
 use crate::user_api::{
-    change_password, confirm_totp_registration, create_user, get_user, login,
-    start_totp_registration, update_user, validate_totp,
+    change_password, confirm_totp_registration, create_jwt_api_token, create_user,
+    delete_jwt_api_token, get_user, login, start_totp_registration, update_user, validate_totp,
 };
 
 pub mod authorization;
@@ -48,8 +48,11 @@ pub fn rocket(db: &Database, config: &Config<'static>) -> Rocket<Build> {
                 get_avatar,
                 delete_avatar,
                 create_or_update_avatar,
+                create_jwt_api_token,
                 add_authorization,
                 is_authorized,
+                is_jwt_api_valid,
+                delete_jwt_api_token,
             ],
         )
 }

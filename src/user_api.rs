@@ -5,10 +5,15 @@ use rocket::serde::json::Json;
 use rocket::State;
 
 use crate::config::Config;
+use crate::jwt::{
+    create_api_jwt_token_for_user, delete_jwt_api_token_for_user, CreateJwtApiRequest,
+    CreateJwtApiResponse,
+};
 use crate::request_guards::{JwtToken, OtpValidatedJwtToken};
 use crate::user::{
     change_password_for_user, create, update, ChangePasswordRequest, ChangePasswordResponse,
-    CreateUserRequest, GetUserResponse, LoginRequest, LoginResponse, UpdateUserRequest,
+    CreateUserRequest, EmptyOkResponse, GetUserResponse, LoginRequest, LoginResponse,
+    UpdateUserRequest,
 };
 use crate::user_totp::{
     confirm_totp_code_for_user, start_totp_registration_for_user, validate_totp_for_user,
@@ -110,4 +115,35 @@ pub async fn validate_totp(
 
     let result = validate_totp_for_user(&jwt_token.user, &config, &validate_totp_request)?;
     Ok(Json(result))
+}
+
+#[post("/user/jwt-api-token", data = "<create_jwt_api_token_request>")]
+pub async fn create_jwt_api_token(
+    config: &State<Config<'_>>,
+    create_jwt_api_token_request: Json<CreateJwtApiRequest>,
+    jwt_token: OtpValidatedJwtToken,
+    db: &State<Database>,
+) -> Result<Json<CreateJwtApiResponse>, Status> {
+    trace!("create_jwt_api_token()");
+    let token = create_api_jwt_token_for_user(
+        &jwt_token.user,
+        &create_jwt_api_token_request.public_token_id,
+        &config.encoding_key,
+        db,
+    )
+    .await?;
+
+    Ok(Json(CreateJwtApiResponse { token }))
+}
+
+#[delete("/user/jwt-api-token/<public_token_id>")]
+pub async fn delete_jwt_api_token(
+    public_token_id: String,
+    jwt_token: OtpValidatedJwtToken,
+    db: &State<Database>,
+) -> Result<Json<EmptyOkResponse>, Status> {
+    trace!("delete_jwt_api_token({})", public_token_id);
+    delete_jwt_api_token_for_user(&jwt_token.user, &public_token_id, db).await?;
+
+    Ok(Json(EmptyOkResponse { success: true }))
 }

@@ -115,19 +115,22 @@ impl<'r> FromRequest<'r> for JwtToken {
                     .state::<Database>()
                     .expect("Database not present");
 
-                let token_message = decode::<JwtClaims>(
+                match decode::<JwtClaims>(
                     &bearer_token.bearer_token,
                     &config.decoding_key,
                     &Validation::new(Algorithm::HS256),
-                )
-                .expect("Should work");
-
-                let user = get_by_id(&token_message.claims.user_id, db).await;
-
-                Outcome::Success(JwtToken {
-                    jwt_claims: token_message.claims,
-                    user: user.expect("What, no user"),
-                })
+                ) {
+                    Ok(token_data) => {
+                        let jwt_claims = token_data.claims;
+                        match get_by_id(&jwt_claims.user_id, db).await {
+                            Ok(user) => Outcome::Success(JwtToken { jwt_claims, user }),
+                            Err(_) => {
+                                Outcome::Failure((Status::Unauthorized, ErrorKind::NotAuthorized))
+                            }
+                        }
+                    }
+                    Err(_) => Outcome::Failure((Status::Unauthorized, ErrorKind::NotAuthorized)),
+                }
             }
             _ => Outcome::Failure((Status::Unauthorized, ErrorKind::NotAuthorized)),
         }

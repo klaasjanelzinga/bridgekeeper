@@ -99,9 +99,7 @@ pub async fn confirm_totp_registration(
     db: &State<Database>,
 ) -> Result<Json<ConfirmTotpResponse>, Status> {
     trace!("confirm_totp_registration({}, _)", jwt_token);
-
     let result = confirm_totp_code_for_user(&jwt_token.user, &validate_totp_request, db).await?;
-
     Ok(Json(result))
 }
 
@@ -112,7 +110,6 @@ pub async fn validate_totp(
     jwt_token: JwtToken,
 ) -> Result<Json<LoginResponse>, Status> {
     trace!("validate_totp({}, _)", jwt_token);
-
     let result = validate_totp_for_user(&jwt_token.user, &config, &validate_totp_request)?;
     Ok(Json(result))
 }
@@ -144,6 +141,5 @@ pub async fn delete_jwt_api_token(
 ) -> Result<Json<EmptyOkResponse>, Status> {
     trace!("delete_jwt_api_token({})", public_token_id);
     delete_jwt_api_token_for_user(&jwt_token.user, &public_token_id, db).await?;
-
     Ok(Json(EmptyOkResponse { success: true }))
 }

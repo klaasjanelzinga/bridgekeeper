@@ -4,9 +4,12 @@ extern crate log;
 use rocket::http::Status;
 
 use bridgekeeper_api::authorization::{AddAuthorizationRequest, IsAuthorizedRequest};
+use bridgekeeper_api::user::User;
+use mongodb::bson::doc;
 
 use crate::common::api_calls::{
-    add_authorization, create_jwt_api, delete_jwt_api_token, is_authorized, is_jwt_api_valid,
+    add_authorization, create_jwt_api, delete_jwt_api_token, get_user, is_authorized,
+    is_jwt_api_valid,
 };
 use crate::common::fixtures::{create_and_login_admin_user, create_and_login_user};
 
@@ -180,7 +183,7 @@ async fn test_add_authorization() {
 /// - Delete the jwt-api token for the api.
 /// - The is_authorized returns Not-authorized.
 #[rocket::async_test]
-async fn test_jwt_api_token_flow() {
+async fn test_jwt_api_token_regular_flow() {
     let test_fixtures = common::setup().await;
     common::empty_users_collection(&test_fixtures.db).await;
 
@@ -198,5 +201,113 @@ async fn test_jwt_api_token_flow() {
         delete_jwt_api_token(&test_fixtures.client, &regular_user.token, "api").await;
     assert!(delete_response.is_ok());
 
+    let is_valid = is_jwt_api_valid(&test_fixtures.client, &result.token).await;
+    assert!(is_valid.is_err());
+    assert_eq!(is_valid.err().unwrap(), Status::Unauthorized);
+
     ()
+}
+
+/// Test the jwt-api token flow with multiple tokens:
+/// - Create a jwt-api token for a certain api and one for another api.
+/// - Check if the is_authorized works for both api's.
+/// - Delete the jwt-api token for one api.
+/// - The is_authorized returns Not-authorized and for ok for the other.
+/// - Update the still working jwt-api.
+/// - The old key should no longer work, the new one should work.
+#[rocket::async_test]
+async fn test_multiple_jwt_api_token_regular_flow() {
+    let test_fixtures = common::setup().await;
+    common::empty_users_collection(&test_fixtures.db).await;
+
+    let regular_user = create_and_login_user(&test_fixtures.client).await;
+
+    let result_1 = create_jwt_api(&test_fixtures.client, &regular_user.token, "api")
+        .await
+        .expect("Should work");
+    let result_2 = create_jwt_api(&test_fixtures.client, &regular_user.token, "api2")
+        .await
+        .expect("Should work");
+
+    // Both api tokens are valid.
+    is_jwt_api_valid(&test_fixtures.client, &result_1.token)
+        .await
+        .ok()
+        .unwrap();
+    is_jwt_api_valid(&test_fixtures.client, &result_2.token)
+        .await
+        .ok()
+        .unwrap();
+
+    // delete token with id api
+    delete_jwt_api_token(&test_fixtures.client, &regular_user.token, "api")
+        .await
+        .ok()
+        .unwrap();
+
+    // api is no longer valid, api2 still is.
+    is_jwt_api_valid(&test_fixtures.client, &result_1.token)
+        .await
+        .err()
+        .unwrap();
+    is_jwt_api_valid(&test_fixtures.client, &result_2.token)
+        .await
+        .ok()
+        .unwrap();
+
+    // Update api2, result_2 no longer works, result_3 works.
+    let result_3 = create_jwt_api(&test_fixtures.client, &regular_user.token, "api2")
+        .await
+        .expect("Should work");
+    is_jwt_api_valid(&test_fixtures.client, &result_2.token)
+        .await
+        .err()
+        .unwrap();
+    is_jwt_api_valid(&test_fixtures.client, &result_3.token)
+        .await
+        .ok()
+        .unwrap();
+
+    ()
+}
+
+/// Test that the token is no longer valid if the user is deleted.
+/// - Create the user and request a api-jwt token.
+/// - Should be valid.
+/// - Delete the user.
+/// - Tokens should no longer be valid.
+#[rocket::async_test]
+async fn test_validity_token_with_missing_user() {
+    let test_fixtures = common::setup().await;
+    common::empty_users_collection(&test_fixtures.db).await;
+
+    let regular_user = create_and_login_user(&test_fixtures.client).await;
+
+    let result_1 = create_jwt_api(&test_fixtures.client, &regular_user.token, "api")
+        .await
+        .expect("Should work");
+    is_jwt_api_valid(&test_fixtures.client, &result_1.token)
+        .await
+        .ok()
+        .unwrap();
+    get_user(&test_fixtures.client, &regular_user.token)
+        .await
+        .unwrap();
+
+    let collection = test_fixtures.db.collection::<User>("user");
+    let delete_result = collection
+        .delete_one(doc! {"user_id": &regular_user.user_id}, None)
+        .await;
+    assert_eq!(delete_result.ok().unwrap().deleted_count, 1);
+
+    let err = is_jwt_api_valid(&test_fixtures.client, &result_1.token)
+        .await
+        .err()
+        .unwrap();
+    assert_eq!(err, Status::Unauthorized);
+    let err = get_user(&test_fixtures.client, &regular_user.token)
+        .await
+        .err()
+        .unwrap();
+    assert_eq!(err, Status::Unauthorized);
 }

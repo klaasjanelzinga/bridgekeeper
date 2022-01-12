@@ -189,23 +189,25 @@ pub async fn is_jwt_api_token_valid(
     db: &Database,
 ) -> Result<bool, ErrorKind> {
     trace!("is_jwt_api_token_valid(_, _, _)");
-    let claims = decode::<JwtApiClaims>(
+    match decode::<JwtApiClaims>(
         &token,
         &config.decoding_key,
         &Validation::new(Algorithm::HS256),
-    )
-    .expect("Should work")
-    .claims;
-
-    match get_by_id(&claims.user_id, db).await {
-        Ok(user) => {
-            let user_has_jwt_api = user.user_jwt_api_token.iter().find(|jwt_api_token| {
-                jwt_api_token.public_token_id == claims.public_token_id
-                    && jwt_api_token.private_token_id == claims.private_token_id
-            });
-            match user_has_jwt_api {
-                None => Err(ErrorKind::NotAuthorized),
-                Some(_) => Ok(true),
+    ) {
+        Ok(token_data) => {
+            let jwt_claims = token_data.claims;
+            match get_by_id(&jwt_claims.user_id, db).await {
+                Ok(user) => {
+                    let user_has_jwt_api = user.user_jwt_api_token.iter().find(|jwt_api_token| {
+                        jwt_api_token.public_token_id == jwt_claims.public_token_id
+                            && jwt_api_token.private_token_id == jwt_claims.private_token_id
+                    });
+                    match user_has_jwt_api {
+                        None => Err(ErrorKind::NotAuthorized),
+                        Some(_) => Ok(true),
+                    }
+                }
+                Err(_) => Err(ErrorKind::NotAuthorized),
             }
         }
         Err(_) => Err(ErrorKind::NotAuthorized),

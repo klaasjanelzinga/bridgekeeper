@@ -7,7 +7,7 @@ use std::error::Error;
 use log::LevelFilter;
 use pretty_env_logger::{formatted_timed_builder, init};
 
-#[rocket::main]
+#[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     if var_os("RUST_LOG").is_none() {
         formatted_timed_builder()
@@ -23,7 +23,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let db = bridgekeeper_api::create_mongo_connection(&config).await?;
 
     info!("Starting server on port 8000");
-    bridgekeeper_api::rocket(&db, &config).launch().await?;
+    bridgekeeper_api::launch(&db, &config).await;
 
     Ok(())
 }

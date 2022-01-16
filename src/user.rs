@@ -1,18 +1,17 @@
 use std::fmt::{Display, Formatter};
 
+use crate::Config;
 use mongodb::bson::doc;
 use mongodb::bson::Bson;
 use mongodb::{Collection, Database};
-use rocket::serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 
-use crate::config::Config;
 use crate::errors::ErrorKind;
 use crate::errors::ErrorKind::EntityNotFound;
-use crate::jwt;
+use crate::jwt::create_jwt_token;
 use crate::util::{create_id, random_string};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-#[serde(crate = "rocket::serde")]
 pub struct UserJwtApiToken {
     pub public_token_id: String,
     pub private_token_id: String,
@@ -27,7 +26,6 @@ impl Display for UserJwtApiToken {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-#[serde(crate = "rocket::serde")]
 pub struct User {
     #[serde(skip_serializing)]
     pub _id: Option<Bson>,
@@ -63,7 +61,6 @@ impl Display for User {
 }
 
 #[derive(Serialize, Deserialize)]
-#[serde(crate = "rocket::serde")]
 pub struct GetUserResponse {
     pub user_id: String,
     pub email_address: String,
@@ -96,7 +93,6 @@ impl Display for GetUserResponse {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-#[serde(crate = "rocket::serde")]
 pub struct UpdateUserRequest {
     pub user_id: String,
     pub email_address: String,
@@ -117,7 +113,6 @@ impl Display for UpdateUserRequest {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-#[serde(crate = "rocket::serde")]
 pub struct CreateUserRequest {
     pub email_address: String,
     pub first_name: String,
@@ -137,7 +132,6 @@ impl Display for CreateUserRequest {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-#[serde(crate = "rocket::serde")]
 pub struct LoginRequest {
     pub email_address: String,
     pub password: String,
@@ -152,7 +146,6 @@ impl Display for LoginRequest {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-#[serde(crate = "rocket::serde")]
 pub struct LoginResponse {
     pub token: String,
     pub needs_otp: bool,
@@ -165,7 +158,6 @@ impl Display for LoginResponse {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-#[serde(crate = "rocket::serde")]
 pub struct ChangePasswordRequest {
     pub current_password: String,
     pub new_password: String,
@@ -178,7 +170,6 @@ impl Display for ChangePasswordRequest {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-#[serde(crate = "rocket::serde")]
 pub struct ChangePasswordResponse {
     pub success: bool,
     pub error_message: Option<String>,
@@ -194,7 +185,6 @@ impl Display for ChangePasswordResponse {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-#[serde(crate = "rocket::serde")]
 pub struct EmptyOkResponse {
     pub success: bool,
 }
@@ -323,26 +313,16 @@ pub async fn login(
     db: &Database,
 ) -> Result<LoginResponse, ErrorKind> {
     trace!("login({}, _)", login_request);
-    let user = get_by_email(&login_request.email_address, db).await?;
-    trace!("Validating password of user {}", user.email_address);
-    let valid_password = verify_input(&login_request.password, &user.password_hash)?;
-    if !valid_password {
-        return Err(ErrorKind::PasswordIncorrect);
-    }
-
-    let token = jwt::create_jwt_token(&user, &config.encoding_key)?;
-    match user.otp_hash {
-        Some(_) => {
-            debug!("User is challenged with an otp.");
+    match get_by_email(&login_request.email_address, db).await {
+        Err(_) => Err(ErrorKind::NotAuthorized),
+        Ok(user) => {
+            let valid_password = verify_input(&login_request.password, &user.password_hash)?;
+            if !valid_password {
+                return Err(ErrorKind::PasswordIncorrect);
+            }
+            let token = create_jwt_token(&user, &config.encoding_key)?;
             Ok(LoginResponse {
-                needs_otp: true,
-                token,
-            })
-        }
-        None => {
-            debug!("Successfully logged in user {}", user);
-            Ok(LoginResponse {
-                needs_otp: false,
+                needs_otp: user.otp_hash.is_some(),
                 token,
             })
         }
@@ -361,7 +341,7 @@ pub async fn login(
 pub async fn create(
     create_user_request: &CreateUserRequest,
     db: &Database,
-) -> Result<GetUserResponse, ErrorKind> {
+) -> Result<User, ErrorKind> {
     trace!("create({}, ...)", create_user_request);
     let collection = user_collection(db);
     let optional_user = collection
@@ -402,7 +382,7 @@ pub async fn create(
         "New user inserted with mongo id {}",
         insert_result.inserted_id
     );
-    Ok(GetUserResponse::from(&new_user))
+    Ok(new_user)
 }
 
 /// Updates the user with the data in user.

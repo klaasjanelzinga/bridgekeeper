@@ -3,13 +3,12 @@ use std::fmt::{Display, Formatter};
 use mongodb::bson::doc;
 use mongodb::bson::Bson;
 use mongodb::{Collection, Database};
-use rocket::serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 
 use crate::errors::ErrorKind;
 use crate::user::User;
 
 #[derive(Serialize, Deserialize)]
-#[serde(crate = "rocket::serde")]
 pub struct GetAvatarResponse {
     pub user_id: String,
     pub avatar_base64: String,
@@ -24,7 +23,6 @@ impl Display for GetAvatarResponse {
 }
 
 #[derive(Serialize, Deserialize)]
-#[serde(crate = "rocket::serde")]
 pub struct UpdateAvatarRequest {
     pub image_base64: String,
 }
@@ -36,7 +34,6 @@ impl Display for UpdateAvatarRequest {
 }
 
 #[derive(Serialize, Deserialize)]
-#[serde(crate = "rocket::serde")]
 pub struct UpdateAvatarResponse {
     pub result: bool,
 }
@@ -48,7 +45,6 @@ impl Display for UpdateAvatarResponse {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-#[serde(crate = "rocket::serde")]
 pub struct Avatar {
     #[serde(skip_serializing)]
     pub _id: Option<Bson>,

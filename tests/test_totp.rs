@@ -3,14 +3,15 @@ extern crate log;
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use axum::http::StatusCode;
 use jsonwebtoken::{decode, Algorithm, Validation};
-use rocket::http::Status;
 use totp_lite::{totp, Sha512};
 
 use bridgekeeper_api::jwt::JwtClaims;
-use common::api_calls::login;
 
-use crate::common::api_calls::{confirm_totp, get_avatar, get_user, start_totp, validate_totp};
+use crate::common::api_calls::{
+    confirm_totp, get_avatar, get_user, login, start_totp, validate_totp,
+};
 use crate::common::fixtures::{calculate_totp_value, create_and_login_user};
 
 mod common;
@@ -23,12 +24,12 @@ mod common;
 /// - Login user, should return a token but not a completed login sequence.
 /// - Use the token on another endpoint than validate-otp. This is not possible.
 /// - Validate the totp with the login token to create a new token.
-#[rocket::async_test]
+#[tokio::test]
 async fn test_totp_flow() {
     let test_fixtures = common::setup().await;
     common::empty_users_collection(&test_fixtures.db).await;
 
-    let login_data = create_and_login_user(&test_fixtures.client).await;
+    let login_data = create_and_login_user(&test_fixtures.app).await;
 
     // Validate the jwt claims in the token.
     let token_message = decode::<JwtClaims>(
@@ -41,7 +42,7 @@ async fn test_totp_flow() {
     assert_eq!(token_message.claims.otp_is_validated, false);
 
     // start registration for a otp.
-    let registration_response = start_totp(&test_fixtures.client, &login_data.token).await;
+    let registration_response = start_totp(&test_fixtures.app, &login_data.token).await;
     assert!(registration_response.is_ok());
     let registration_response_data = registration_response.unwrap();
 
@@ -58,7 +59,7 @@ async fn test_totp_flow() {
 
     // Confirm the totp with the calculated OTP.
     let confirm_response = confirm_totp(
-        &test_fixtures.client,
+        &test_fixtures.app,
         &login_data.token,
         &calculate_totp_value(&registration_response_data.secret),
     )
@@ -68,7 +69,7 @@ async fn test_totp_flow() {
 
     // second login with a required OTP challenge. Should Ok with a token that is only valid for OTP.
     let second_login = login(
-        &test_fixtures.client,
+        &test_fixtures.app,
         &login_data.email_address,
         &login_data.password,
     )
@@ -86,21 +87,22 @@ async fn test_totp_flow() {
     assert_eq!(token_second_login.claims.otp_is_validated, false);
 
     // Token cannot be used anywhere else since an otp challenge is required.
-    let failing_api_call = get_user(&test_fixtures.client, &second_login.token).await;
+    let failing_api_call = get_user(&test_fixtures.app, &second_login.token).await;
     assert!(failing_api_call.is_err());
-    assert_eq!(failing_api_call.err().unwrap(), Status::Unauthorized);
+    assert_eq!(failing_api_call.err().unwrap(), StatusCode::UNAUTHORIZED);
 
-    let failing_api_call = get_avatar(&test_fixtures.client, &second_login.token).await;
+    let failing_api_call = get_avatar(&test_fixtures.app, &second_login.token).await;
     assert!(failing_api_call.is_err());
-    assert_eq!(failing_api_call.err().unwrap(), Status::Unauthorized);
+    assert_eq!(failing_api_call.err().unwrap(), StatusCode::UNAUTHORIZED);
 
     // validate the otp
     let validated_totp_response = validate_totp(
-        &test_fixtures.client,
+        &test_fixtures.app,
         &login_data.token,
         &calculate_totp_value(&registration_response_data.secret),
     )
-    .await;
+    .await
+    .unwrap();
     assert_ne!(validated_totp_response.token, second_login.token);
 
     // dissect the token.
@@ -116,21 +118,21 @@ async fn test_totp_flow() {
     );
     assert_eq!(token_otp_validated_login.claims.otp_is_validated, true);
 
-    let api_call = get_user(&test_fixtures.client, &validated_totp_response.token).await;
+    let api_call = get_user(&test_fixtures.app, &validated_totp_response.token).await;
     assert!(api_call.is_ok());
 
     ()
 }
 
 /// Test the totp with invalid codes
-#[rocket::async_test]
+#[tokio::test]
 async fn test_totp_flow_with_invalid_codes() {
     let test_fixtures = common::setup().await;
     common::empty_users_collection(&test_fixtures.db).await;
 
-    let login_data = create_and_login_user(&test_fixtures.client).await;
+    let login_data = create_and_login_user(&test_fixtures.app).await;
 
-    let registration_response = start_totp(&test_fixtures.client, &login_data.token)
+    let registration_response = start_totp(&test_fixtures.app, &login_data.token)
         .await
         .unwrap();
 
@@ -142,18 +144,14 @@ async fn test_totp_flow_with_invalid_codes() {
     let correct_totp_value = totp::<Sha512>(registration_response.secret.as_bytes(), seconds);
 
     // Confirm with an invalid token.
-    let response = confirm_totp(&test_fixtures.client, &login_data.token, "invalid").await;
+    let response = confirm_totp(&test_fixtures.app, &login_data.token, "invalid").await;
     assert!(response.is_err());
-    assert_eq!(response.err().unwrap(), Status::Unauthorized);
+    assert_eq!(response.err().unwrap(), StatusCode::UNAUTHORIZED);
 
     // Confirm the totp
-    let confirm_response = confirm_totp(
-        &test_fixtures.client,
-        &login_data.token,
-        &correct_totp_value,
-    )
-    .await
-    .unwrap();
+    let confirm_response = confirm_totp(&test_fixtures.app, &login_data.token, &correct_totp_value)
+        .await
+        .unwrap();
 
     assert_eq!(confirm_response.success, true);
 

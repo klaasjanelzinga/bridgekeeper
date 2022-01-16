@@ -1,14 +1,13 @@
+use axum::Router;
 use std::env;
-use std::io::Write;
 use std::sync::Once;
-use std::thread::current;
 use std::time::Duration;
 
 use log::LevelFilter;
 use mongodb::Database;
-use rocket::local::asynchronous::Client;
 use tokio::time::sleep;
 
+use bridgekeeper_api::application_routes;
 use bridgekeeper_api::config::Config;
 use bridgekeeper_api::user::User;
 
@@ -18,7 +17,7 @@ pub mod fixtures;
 pub struct TestFixtures<'a> {
     pub db: Database,
     pub config: Config<'a>,
-    pub client: Client,
+    pub app: Router,
 }
 
 static LOG_INIT: Once = Once::new();
@@ -33,21 +32,12 @@ pub async fn setup<'a>() -> TestFixtures<'a> {
     LOG_INIT.call_once(|| {
         if env::var_os("RUST_LOG").is_none() {
             pretty_env_logger::formatted_timed_builder()
-                .format(|buf, record| {
-                    writeln!(
-                        buf,
-                        "{:?} - {} - {}",
-                        current().id(),
-                        record.level(),
-                        record.args()
-                    )
-                })
-                .filter_module("rocket", LevelFilter::Error)
                 .filter_module("bridgekeeper_api", LevelFilter::Trace)
                 .filter_module("test_users", LevelFilter::Trace)
                 .filter_module("test_totp", LevelFilter::Trace)
                 .filter_module("test_illegal_access", LevelFilter::Trace)
-                .filter_level(LevelFilter::Warn)
+                .filter_module("tower_http::trace", LevelFilter::Trace)
+                .filter_level(LevelFilter::Info)
                 .init();
         } else {
             pretty_env_logger::init();
@@ -66,11 +56,8 @@ pub async fn setup<'a>() -> TestFixtures<'a> {
         .await
         .unwrap();
 
-    let client = Client::untracked(bridgekeeper_api::rocket(&db.clone(), &config.clone()))
-        .await
-        .expect("Client expected");
-
-    TestFixtures { config, db, client }
+    let app = application_routes(&db, &config);
+    TestFixtures { config, db, app }
 }
 
 static mut EMPTY_USERS_COLLECTION_BARRIER: u32 = 1;

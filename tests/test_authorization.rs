@@ -1,32 +1,43 @@
 #[macro_use]
 extern crate log;
 
-use rocket::http::Status;
-
-use bridgekeeper_api::authorization::{AddAuthorizationRequest, IsAuthorizedRequest};
-use bridgekeeper_api::user::User;
-use mongodb::bson::doc;
-
 use crate::common::api_calls::{
     add_authorization, create_jwt_api, delete_jwt_api_token, get_user, is_authorized,
     is_jwt_api_valid,
 };
 use crate::common::fixtures::{create_and_login_admin_user, create_and_login_user};
+use axum::http::StatusCode;
+use bridgekeeper_api::authorization::{AddAuthorizationRequest, IsAuthorizedRequest};
+use bridgekeeper_api::user::User;
+use mongodb::bson::doc;
 
+//
+// use rocket::http::Status;
+//
+// use bridgekeeper_api::authorization::{AddAuthorizationRequest, IsAuthorizedRequest};
+// use bridgekeeper_api::user::User;
+// use mongodb::bson::doc;
+//
+// use crate::common::api_calls::{
+//     add_authorization, create_jwt_api, delete_jwt_api_token, get_user, is_authorized,
+//     is_jwt_api_valid,
+// };
+// use crate::common::fixtures::{create_and_login_admin_user, create_and_login_user};
+//
 mod common;
-
+//
 /// Test the authorization process.
 ///
 /// - Create an admin user (someone with privileges on bridgekeeper).
 /// - Create a regular user.
 /// - The admin user gives the regular user some privileges and these are validated.
-#[rocket::async_test]
+#[tokio::test]
 async fn test_authorization() {
     let test_fixtures = common::setup().await;
     common::empty_users_collection(&test_fixtures.db).await;
 
-    let regular_user = create_and_login_user(&test_fixtures.client).await;
-    let admin_user = create_and_login_admin_user(&test_fixtures.client, &test_fixtures.db).await;
+    let regular_user = create_and_login_user(&test_fixtures.app).await;
+    let admin_user = create_and_login_admin_user(&test_fixtures.app, &test_fixtures.db).await;
 
     // add authorization through api for regular user. Can only:
     // - GET /netherlands/gro.*
@@ -54,7 +65,7 @@ async fn test_authorization() {
     ];
     for regular_privilege in regular_priviliges {
         let auth_result =
-            add_authorization(&test_fixtures.client, &admin_user.token, &regular_privilege).await;
+            add_authorization(&test_fixtures.app, &admin_user.token, &regular_privilege).await;
         assert!(auth_result.is_ok());
     }
 
@@ -87,7 +98,7 @@ async fn test_authorization() {
     ];
     for valid in valid_authentications {
         let is_authorized_response =
-            is_authorized(&test_fixtures.client, &regular_user.token, &valid).await;
+            is_authorized(&test_fixtures.app, &regular_user.token, &valid).await;
         assert!(is_authorized_response.is_ok());
     }
 
@@ -125,9 +136,12 @@ async fn test_authorization() {
     ];
     for invalid in invalids {
         let is_authorized_response =
-            is_authorized(&test_fixtures.client, &regular_user.token, &invalid).await;
+            is_authorized(&test_fixtures.app, &regular_user.token, &invalid).await;
         assert!(is_authorized_response.is_err());
-        assert_eq!(is_authorized_response.err().unwrap(), Status::Unauthorized);
+        assert_eq!(
+            is_authorized_response.err().unwrap(),
+            StatusCode::UNAUTHORIZED
+        );
     }
 
     ()
@@ -137,17 +151,17 @@ async fn test_authorization() {
 /// - Create a regular user and an admin user.
 /// - Regular user cannot give privileges.
 /// - Admin user can give privileges.
-#[rocket::async_test]
+#[tokio::test]
 async fn test_add_authorization() {
     let test_fixtures = common::setup().await;
     common::empty_users_collection(&test_fixtures.db).await;
 
-    let regular_user = create_and_login_user(&test_fixtures.client).await;
-    let admin_user = create_and_login_admin_user(&test_fixtures.client, &test_fixtures.db).await;
+    let regular_user = create_and_login_user(&test_fixtures.app).await;
+    let admin_user = create_and_login_admin_user(&test_fixtures.app, &test_fixtures.db).await;
 
     // regular user cannot give privileges
     let result = add_authorization(
-        &test_fixtures.client,
+        &test_fixtures.app,
         &regular_user.token,
         &AddAuthorizationRequest {
             for_user_id: regular_user.user_id.clone(),
@@ -158,11 +172,11 @@ async fn test_add_authorization() {
     )
     .await;
     assert!(result.is_err());
-    assert_eq!(result.err().unwrap(), Status::Unauthorized);
+    assert_eq!(result.err().unwrap(), StatusCode::UNAUTHORIZED);
 
     // admin_user can.
     let result = add_authorization(
-        &test_fixtures.client,
+        &test_fixtures.app,
         &admin_user.token,
         &AddAuthorizationRequest {
             for_user_id: admin_user.user_id.clone(),
@@ -182,28 +196,28 @@ async fn test_add_authorization() {
 /// - Check if the is_authorized works for the jwt-api-token.
 /// - Delete the jwt-api token for the api.
 /// - The is_authorized returns Not-authorized.
-#[rocket::async_test]
+#[tokio::test]
 async fn test_jwt_api_token_regular_flow() {
     let test_fixtures = common::setup().await;
     common::empty_users_collection(&test_fixtures.db).await;
 
-    let regular_user = create_and_login_user(&test_fixtures.client).await;
+    let regular_user = create_and_login_user(&test_fixtures.app).await;
 
-    let result = create_jwt_api(&test_fixtures.client, &regular_user.token, "api")
+    let result = create_jwt_api(&test_fixtures.app, &regular_user.token, "api")
         .await
         .expect("Should work");
     assert!(result.token.len() > 10);
 
-    let is_valid = is_jwt_api_valid(&test_fixtures.client, &result.token).await;
+    let is_valid = is_jwt_api_valid(&test_fixtures.app, &result.token).await;
     assert!(is_valid.is_ok());
 
     let delete_response =
-        delete_jwt_api_token(&test_fixtures.client, &regular_user.token, "api").await;
+        delete_jwt_api_token(&test_fixtures.app, &regular_user.token, "api").await;
     assert!(delete_response.is_ok());
 
-    let is_valid = is_jwt_api_valid(&test_fixtures.client, &result.token).await;
+    let is_valid = is_jwt_api_valid(&test_fixtures.app, &result.token).await;
     assert!(is_valid.is_err());
-    assert_eq!(is_valid.err().unwrap(), Status::Unauthorized);
+    assert_eq!(is_valid.err().unwrap(), StatusCode::UNAUTHORIZED);
 
     ()
 }
@@ -215,55 +229,55 @@ async fn test_jwt_api_token_regular_flow() {
 /// - The is_authorized returns Not-authorized and for ok for the other.
 /// - Update the still working jwt-api.
 /// - The old key should no longer work, the new one should work.
-#[rocket::async_test]
+#[tokio::test]
 async fn test_multiple_jwt_api_token_regular_flow() {
     let test_fixtures = common::setup().await;
     common::empty_users_collection(&test_fixtures.db).await;
 
-    let regular_user = create_and_login_user(&test_fixtures.client).await;
+    let regular_user = create_and_login_user(&test_fixtures.app).await;
 
-    let result_1 = create_jwt_api(&test_fixtures.client, &regular_user.token, "api")
+    let result_1 = create_jwt_api(&test_fixtures.app, &regular_user.token, "api")
         .await
         .expect("Should work");
-    let result_2 = create_jwt_api(&test_fixtures.client, &regular_user.token, "api2")
+    let result_2 = create_jwt_api(&test_fixtures.app, &regular_user.token, "api2")
         .await
         .expect("Should work");
 
     // Both api tokens are valid.
-    is_jwt_api_valid(&test_fixtures.client, &result_1.token)
+    is_jwt_api_valid(&test_fixtures.app, &result_1.token)
         .await
         .ok()
         .unwrap();
-    is_jwt_api_valid(&test_fixtures.client, &result_2.token)
+    is_jwt_api_valid(&test_fixtures.app, &result_2.token)
         .await
         .ok()
         .unwrap();
 
     // delete token with id api
-    delete_jwt_api_token(&test_fixtures.client, &regular_user.token, "api")
+    delete_jwt_api_token(&test_fixtures.app, &regular_user.token, "api")
         .await
         .ok()
         .unwrap();
 
     // api is no longer valid, api2 still is.
-    is_jwt_api_valid(&test_fixtures.client, &result_1.token)
+    is_jwt_api_valid(&test_fixtures.app, &result_1.token)
         .await
         .err()
         .unwrap();
-    is_jwt_api_valid(&test_fixtures.client, &result_2.token)
+    is_jwt_api_valid(&test_fixtures.app, &result_2.token)
         .await
         .ok()
         .unwrap();
 
     // Update api2, result_2 no longer works, result_3 works.
-    let result_3 = create_jwt_api(&test_fixtures.client, &regular_user.token, "api2")
+    let result_3 = create_jwt_api(&test_fixtures.app, &regular_user.token, "api2")
         .await
         .expect("Should work");
-    is_jwt_api_valid(&test_fixtures.client, &result_2.token)
+    is_jwt_api_valid(&test_fixtures.app, &result_2.token)
         .await
         .err()
         .unwrap();
-    is_jwt_api_valid(&test_fixtures.client, &result_3.token)
+    is_jwt_api_valid(&test_fixtures.app, &result_3.token)
         .await
         .ok()
         .unwrap();
@@ -276,21 +290,21 @@ async fn test_multiple_jwt_api_token_regular_flow() {
 /// - Should be valid.
 /// - Delete the user.
 /// - Tokens should no longer be valid.
-#[rocket::async_test]
+#[tokio::test]
 async fn test_validity_token_with_missing_user() {
     let test_fixtures = common::setup().await;
     common::empty_users_collection(&test_fixtures.db).await;
 
-    let regular_user = create_and_login_user(&test_fixtures.client).await;
+    let regular_user = create_and_login_user(&test_fixtures.app).await;
 
-    let result_1 = create_jwt_api(&test_fixtures.client, &regular_user.token, "api")
+    let result_1 = create_jwt_api(&test_fixtures.app, &regular_user.token, "api")
         .await
         .expect("Should work");
-    is_jwt_api_valid(&test_fixtures.client, &result_1.token)
+    is_jwt_api_valid(&test_fixtures.app, &result_1.token)
         .await
         .ok()
         .unwrap();
-    get_user(&test_fixtures.client, &regular_user.token)
+    get_user(&test_fixtures.app, &regular_user.token)
         .await
         .unwrap();
 
@@ -300,14 +314,14 @@ async fn test_validity_token_with_missing_user() {
         .await;
     assert_eq!(delete_result.ok().unwrap().deleted_count, 1);
 
-    let err = is_jwt_api_valid(&test_fixtures.client, &result_1.token)
+    let err = is_jwt_api_valid(&test_fixtures.app, &result_1.token)
         .await
         .err()
         .unwrap();
-    assert_eq!(err, Status::Unauthorized);
-    let err = get_user(&test_fixtures.client, &regular_user.token)
+    assert_eq!(err, StatusCode::UNAUTHORIZED);
+    let err = get_user(&test_fixtures.app, &regular_user.token)
         .await
         .err()
         .unwrap();
-    assert_eq!(err, Status::Unauthorized);
+    assert_eq!(err, StatusCode::UNAUTHORIZED);
 }

@@ -1,6 +1,6 @@
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
-use rocket::serde::uuid::Uuid;
+use uuid::Uuid;
 
 pub fn random_string(number_of_chars: usize) -> String {
     let rng = thread_rng();

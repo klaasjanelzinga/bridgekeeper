@@ -3,7 +3,7 @@ use std::fmt::{Display, Formatter};
 use chrono::Utc;
 use jsonwebtoken::{encode, EncodingKey, Header};
 use mongodb::Database;
-use rocket::serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 
 use crate::errors::ErrorKind;
 use crate::user::{update_user, User, UserJwtApiToken};
@@ -46,7 +46,6 @@ impl Display for JwtApiClaims {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(crate = "rocket::serde")]
 pub struct CreateJwtApiRequest {
     pub public_token_id: String,
 }
@@ -60,7 +59,6 @@ impl Display for CreateJwtApiRequest {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-#[serde(crate = "rocket::serde")]
 pub struct CreateJwtApiResponse {
     pub token: String,
 }

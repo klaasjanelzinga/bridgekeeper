@@ -1,5 +1,8 @@
-use rocket::http::{Header, Status};
-use rocket::local::asynchronous::Client;
+use axum::http::{Request, StatusCode};
+use axum::{http, Router};
+use hyper::Body;
+use serde_json::json;
+use tower::ServiceExt;
 
 use bridgekeeper_api::authorization::{
     AddAuthorizationRequest, Authorization, IsAuthorizedRequest, IsAuthorizedResponse,
@@ -18,99 +21,139 @@ use bridgekeeper_api::user_totp::{
 /// Create the user.
 #[allow(dead_code)]
 pub async fn create_user(
-    client: &Client,
+    router: &Router,
     create_user_request: &CreateUserRequest,
-) -> Result<GetUserResponse, Status> {
-    let response = client
-        .post("/user")
-        .json(&create_user_request)
-        .dispatch()
-        .await;
-    if response.status() != Status::Created {
-        return Err(response.status());
+) -> Result<GetUserResponse, StatusCode> {
+    let req = Request::builder()
+        .uri("/user")
+        .method(http::Method::POST)
+        .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+        .body(Body::from(
+            serde_json::to_string(&json!(create_user_request)).unwrap(),
+        ))
+        .unwrap();
+    let response = router.clone().oneshot(req).await.unwrap();
+    if response.status() == StatusCode::CREATED {
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        return Ok(serde_json::from_slice(&body).unwrap());
     }
-    assert_eq!(response.status(), Status::Created);
-    Ok(serde_json::from_str(&response.into_string().await.unwrap()).unwrap())
+    return Err(response.status());
 }
 
 /// Login the user.
 #[allow(dead_code)]
 pub async fn login(
-    client: &Client,
+    router: &Router,
     email_address: &str,
     password: &str,
-) -> Result<LoginResponse, Status> {
+) -> Result<LoginResponse, StatusCode> {
     let login_request = LoginRequest {
         email_address: String::from(email_address),
         password: String::from(password),
     };
-    let response = client
-        .post("/user/login")
-        .json(&login_request)
-        .dispatch()
-        .await;
-    if response.status() != Status::Ok {
-        return Err(response.status());
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/user/login")
+                .method(http::Method::POST)
+                .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+                .body(Body::from(
+                    serde_json::to_string(&json!(login_request)).unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    if response.status() == StatusCode::OK {
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        return Ok(serde_json::from_slice(&body).unwrap());
     }
-    assert_eq!(response.status(), Status::Ok);
-    Ok(serde_json::from_str(&response.into_string().await.unwrap()).unwrap())
+    return Err(response.status());
 }
 
 /// Update the user.
 #[allow(dead_code)]
 pub async fn update_user(
-    client: &Client,
+    router: &Router,
     update_request: &UpdateUserRequest,
     token: &str,
-) -> GetUserResponse {
-    let response = client
-        .put("/user")
-        .json(&update_request)
-        .header(Header::new("Authorization", format!("Bearer {}", token)))
-        .dispatch()
-        .await;
-    assert_eq!(response.status(), Status::Ok);
-
-    serde_json::from_str(&response.into_string().await.unwrap()).unwrap()
+) -> Result<GetUserResponse, StatusCode> {
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/user")
+                .method(http::Method::PUT)
+                .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+                .header(http::header::AUTHORIZATION, format!("Bearer {}", token))
+                .body(Body::from(
+                    serde_json::to_string(&json!(update_request)).unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    if response.status() == StatusCode::OK {
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        return Ok(serde_json::from_slice(&body).unwrap());
+    }
+    Err(response.status())
 }
 
 /// Change password for a user.
 #[allow(dead_code)]
 pub async fn change_password(
-    client: &Client,
+    router: &Router,
     token: &str,
     current_password: &str,
     new_password: &str,
-) -> Result<ChangePasswordResponse, Status> {
+) -> Result<ChangePasswordResponse, StatusCode> {
     let change_password_request = ChangePasswordRequest {
         current_password: String::from(current_password),
         new_password: String::from(new_password),
     };
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/user/change-password")
+                .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+                .header(http::header::AUTHORIZATION, format!("Bearer {}", token))
+                .method(http::Method::POST)
+                .body(Body::from(
+                    serde_json::to_string(&json!(change_password_request)).unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
 
-    let response = client
-        .post("/user/change-password")
-        .json(&change_password_request)
-        .header(Header::new("Authorization", format!("Bearer {}", token)))
-        .dispatch()
-        .await;
-
-    if response.status() == Status::Ok {
-        Ok(serde_json::from_str(&response.into_string().await.unwrap()).unwrap())
-    } else {
-        Err(response.status())
+    if response.status() == StatusCode::OK {
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        return Ok(serde_json::from_slice(&body).unwrap());
     }
+    Err(response.status())
 }
 
 /// Get user by the user_id.
 #[allow(dead_code)]
-pub async fn get_user(client: &Client, token: &str) -> Result<GetUserResponse, Status> {
-    let response = client
-        .get("/user")
-        .header(Header::new("Authorization", format!("Bearer {}", token)))
-        .dispatch()
-        .await;
-    if response.status() == Status::Ok {
-        return Ok(serde_json::from_str(&response.into_string().await.unwrap()).unwrap());
+pub async fn get_user(router: &Router, token: &str) -> Result<GetUserResponse, StatusCode> {
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/user")
+                .header(http::header::AUTHORIZATION, format!("Bearer {}", token))
+                .method(http::Method::GET)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    if response.status() == StatusCode::OK {
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        return Ok(serde_json::from_slice(&body).unwrap());
     }
     Err(response.status())
 }
@@ -118,16 +161,26 @@ pub async fn get_user(client: &Client, token: &str) -> Result<GetUserResponse, S
 /// start the totp registration
 #[allow(dead_code)]
 pub async fn start_totp(
-    client: &Client,
+    router: &Router,
     token: &str,
-) -> Result<StartTotpRegistrationResult, Status> {
-    let response = client
-        .post("/user/start-totp-registration")
-        .header(Header::new("Authorization", format!("Bearer {}", token)))
-        .dispatch()
-        .await;
-    if response.status() == Status::Ok {
-        return Ok(serde_json::from_str(&response.into_string().await.unwrap()).unwrap());
+) -> Result<StartTotpRegistrationResult, StatusCode> {
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/user/start-totp-registration")
+                .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+                .header(http::header::AUTHORIZATION, format!("Bearer {}", token))
+                .method(http::Method::POST)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    if response.status() == StatusCode::OK {
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        return Ok(serde_json::from_slice(&body).unwrap());
     }
     Err(response.status())
 }
@@ -135,51 +188,89 @@ pub async fn start_totp(
 /// confirm the totp code
 #[allow(dead_code)]
 pub async fn confirm_totp(
-    client: &Client,
+    router: &Router,
     token: &str,
     totp_challenge: &str,
-) -> Result<ConfirmTotpResponse, Status> {
+) -> Result<ConfirmTotpResponse, StatusCode> {
     let validate_totp_request = ValidateTotpRequest {
         totp_challenge: totp_challenge.to_string(),
     };
-    let response = client
-        .post("/user/confirm-totp-registration")
-        .json(&validate_totp_request)
-        .header(Header::new("Authorization", format!("Bearer {}", token)))
-        .dispatch()
-        .await;
-    if response.status() == Status::Ok {
-        return Ok(serde_json::from_str(&response.into_string().await.unwrap()).unwrap());
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/user/confirm-totp-registration")
+                .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+                .header(http::header::AUTHORIZATION, format!("Bearer {}", token))
+                .method(http::Method::POST)
+                .body(Body::from(
+                    serde_json::to_string(&json!(validate_totp_request)).unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    if response.status() == StatusCode::OK {
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        return Ok(serde_json::from_slice(&body).unwrap());
     }
     Err(response.status())
 }
 
 /// validate totp code
 #[allow(dead_code)]
-pub async fn validate_totp(client: &Client, token: &str, totp_challenge: &str) -> LoginResponse {
+pub async fn validate_totp(
+    router: &Router,
+    token: &str,
+    totp_challenge: &str,
+) -> Result<LoginResponse, StatusCode> {
     let validate_totp_request = ValidateTotpRequest {
         totp_challenge: totp_challenge.to_string(),
     };
-    let response = client
-        .post("/user/validate-totp")
-        .json(&validate_totp_request)
-        .header(Header::new("Authorization", format!("Bearer {}", token)))
-        .dispatch()
-        .await;
-    assert_eq!(response.status(), Status::Ok);
-    serde_json::from_str(&response.into_string().await.unwrap()).unwrap()
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/user/validate-totp")
+                .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+                .header(http::header::AUTHORIZATION, format!("Bearer {}", token))
+                .method(http::Method::POST)
+                .body(Body::from(
+                    serde_json::to_string(&json!(validate_totp_request)).unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    if response.status() == StatusCode::OK {
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        return Ok(serde_json::from_slice(&body).unwrap());
+    }
+    Err(response.status())
 }
 
 /// Get avatar by the user_id.
 #[allow(dead_code)]
-pub async fn get_avatar(client: &Client, token: &str) -> Result<GetAvatarResponse, Status> {
-    let response = client
-        .get("/user/avatar")
-        .header(Header::new("Authorization", format!("Bearer {}", token)))
-        .dispatch()
-        .await;
-    if response.status() == Status::Ok {
-        return Ok(serde_json::from_str(&response.into_string().await.unwrap()).unwrap());
+pub async fn get_avatar(router: &Router, token: &str) -> Result<GetAvatarResponse, StatusCode> {
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/user/avatar")
+                .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+                .header(http::header::AUTHORIZATION, format!("Bearer {}", token))
+                .method(http::Method::GET)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    if response.status() == StatusCode::OK {
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        return Ok(serde_json::from_slice(&body).unwrap());
     }
     Err(response.status())
 }
@@ -187,32 +278,56 @@ pub async fn get_avatar(client: &Client, token: &str) -> Result<GetAvatarRespons
 /// Create or update avatar by the user_id.
 #[allow(dead_code)]
 pub async fn create_or_update_avatar(
-    client: &Client,
+    router: &Router,
     token: &str,
     update_avatar_request: &UpdateAvatarRequest,
-) -> Result<UpdateAvatarResponse, Status> {
-    let response = client
-        .post("/user/avatar")
-        .json(&update_avatar_request)
-        .header(Header::new("Authorization", format!("Bearer {}", token)))
-        .dispatch()
-        .await;
-    if response.status() == Status::Ok {
-        return Ok(serde_json::from_str(&response.into_string().await.unwrap()).unwrap());
+) -> Result<UpdateAvatarResponse, StatusCode> {
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/user/avatar")
+                .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+                .header(http::header::AUTHORIZATION, format!("Bearer {}", token))
+                .method(http::Method::POST)
+                .body(Body::from(
+                    serde_json::to_string(&json!(update_avatar_request)).unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    if response.status() == StatusCode::OK {
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        return Ok(serde_json::from_slice(&body).unwrap());
     }
     Err(response.status())
 }
 
 /// Delete avatar by the user_id.
 #[allow(dead_code)]
-pub async fn delete_avatar(client: &Client, token: &str) -> Result<UpdateAvatarResponse, Status> {
-    let response = client
-        .delete("/user/avatar")
-        .header(Header::new("Authorization", format!("Bearer {}", token)))
-        .dispatch()
-        .await;
-    if response.status() == Status::Ok {
-        return Ok(serde_json::from_str(&response.into_string().await.unwrap()).unwrap());
+pub async fn delete_avatar(
+    router: &Router,
+    token: &str,
+) -> Result<UpdateAvatarResponse, StatusCode> {
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/user/avatar")
+                .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+                .header(http::header::AUTHORIZATION, format!("Bearer {}", token))
+                .method(http::Method::DELETE)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    if response.status() == StatusCode::OK {
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        return Ok(serde_json::from_slice(&body).unwrap());
     }
     Err(response.status())
 }
@@ -220,18 +335,29 @@ pub async fn delete_avatar(client: &Client, token: &str) -> Result<UpdateAvatarR
 /// Add an authorization record for a user.
 #[allow(dead_code)]
 pub async fn add_authorization(
-    client: &Client,
+    router: &Router,
     token: &str,
     add_authorization_request: &AddAuthorizationRequest,
-) -> Result<Authorization, Status> {
-    let response = client
-        .post("/authorization")
-        .json(add_authorization_request)
-        .header(Header::new("Authorization", format!("Bearer {}", token)))
-        .dispatch()
-        .await;
-    if response.status() == Status::Ok {
-        return Ok(serde_json::from_str(&response.into_string().await.unwrap()).unwrap());
+) -> Result<Authorization, StatusCode> {
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/authorization")
+                .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+                .header(http::header::AUTHORIZATION, format!("Bearer {}", token))
+                .method(http::Method::POST)
+                .body(Body::from(
+                    serde_json::to_string(&json!(add_authorization_request)).unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    if response.status() == StatusCode::OK {
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        return Ok(serde_json::from_slice(&body).unwrap());
     }
     Err(response.status())
 }
@@ -239,18 +365,29 @@ pub async fn add_authorization(
 /// Is user authorized.
 #[allow(dead_code)]
 pub async fn is_authorized(
-    client: &Client,
+    router: &Router,
     token: &str,
     is_authorized_request: &IsAuthorizedRequest,
-) -> Result<IsAuthorizedResponse, Status> {
-    let response = client
-        .post("/authorization/user")
-        .json(is_authorized_request)
-        .header(Header::new("Authorization", format!("Bearer {}", token)))
-        .dispatch()
-        .await;
-    if response.status() == Status::Ok {
-        return Ok(serde_json::from_str(&response.into_string().await.unwrap()).unwrap());
+) -> Result<IsAuthorizedResponse, StatusCode> {
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/authorization/user")
+                .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+                .header(http::header::AUTHORIZATION, format!("Bearer {}", token))
+                .method(http::Method::POST)
+                .body(Body::from(
+                    serde_json::to_string(&json!(is_authorized_request)).unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    if response.status() == StatusCode::OK {
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        return Ok(serde_json::from_slice(&body).unwrap());
     }
     Err(response.status())
 }
@@ -258,20 +395,32 @@ pub async fn is_authorized(
 /// Create a jwt-api token.
 #[allow(dead_code)]
 pub async fn create_jwt_api(
-    client: &Client,
+    router: &Router,
     token: &str,
     public_token_id: &str,
-) -> Result<CreateJwtApiResponse, Status> {
-    let response = client
-        .post("/user/jwt-api-token")
-        .json(&CreateJwtApiRequest {
-            public_token_id: public_token_id.to_string(),
-        })
-        .header(Header::new("Authorization", format!("Bearer {}", token)))
-        .dispatch()
-        .await;
-    if response.status() == Status::Ok {
-        return Ok(serde_json::from_str(&response.into_string().await.unwrap()).unwrap());
+) -> Result<CreateJwtApiResponse, StatusCode> {
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/user/jwt-api-token")
+                .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+                .header(http::header::AUTHORIZATION, format!("Bearer {}", token))
+                .method(http::Method::POST)
+                .body(Body::from(
+                    serde_json::to_string(&json!(&CreateJwtApiRequest {
+                        public_token_id: public_token_id.to_string(),
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    if response.status() == StatusCode::OK {
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        return Ok(serde_json::from_slice(&body).unwrap());
     }
     Err(response.status())
 }
@@ -279,18 +428,30 @@ pub async fn create_jwt_api(
 /// Check a jwt-api token.
 #[allow(dead_code)]
 pub async fn is_jwt_api_valid(
-    client: &Client,
+    router: &Router,
     jwt_api_token: &str,
-) -> Result<IsAuthorizedResponse, Status> {
-    let response = client
-        .post("/authorization/jwt-api-token")
-        .json(&IsJwtApiTokenValidRequest {
-            token: jwt_api_token.to_string(),
-        })
-        .dispatch()
-        .await;
-    if response.status() == Status::Ok {
-        return Ok(serde_json::from_str(&response.into_string().await.unwrap()).unwrap());
+) -> Result<IsAuthorizedResponse, StatusCode> {
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/authorization/jwt-api-token")
+                .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+                .method(http::Method::POST)
+                .body(Body::from(
+                    serde_json::to_string(&json!(&IsJwtApiTokenValidRequest {
+                        token: jwt_api_token.to_string(),
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    if response.status() == StatusCode::OK {
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        return Ok(serde_json::from_slice(&body).unwrap());
     }
     Err(response.status())
 }
@@ -298,17 +459,27 @@ pub async fn is_jwt_api_valid(
 /// Delete a jwt-api token.
 #[allow(dead_code)]
 pub async fn delete_jwt_api_token(
-    client: &Client,
+    router: &Router,
     token: &str,
     public_token_id: &str,
-) -> Result<EmptyOkResponse, Status> {
-    let response = client
-        .delete(format!("/user/jwt-api-token/{}", public_token_id))
-        .header(Header::new("Authorization", format!("Bearer {}", token)))
-        .dispatch()
-        .await;
-    if response.status() == Status::Ok {
-        return Ok(serde_json::from_str(&response.into_string().await.unwrap()).unwrap());
+) -> Result<EmptyOkResponse, StatusCode> {
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!("/user/jwt-api-token/{}", public_token_id))
+                .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+                .header(http::header::AUTHORIZATION, format!("Bearer {}", token))
+                .method(http::Method::DELETE)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    if response.status() == StatusCode::OK {
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        return Ok(serde_json::from_slice(&body).unwrap());
     }
     Err(response.status())
 }

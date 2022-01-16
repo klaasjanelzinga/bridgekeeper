@@ -1,3 +1,4 @@
+use futures::TryStreamExt;
 use jsonwebtoken::{decode, Algorithm, Validation};
 use std::fmt::{Display, Formatter};
 
@@ -6,15 +7,13 @@ use mongodb::bson::doc;
 use mongodb::bson::Bson;
 use mongodb::{Collection, Database};
 use regex::Regex;
-use rocket::futures::TryStreamExt;
-use rocket::serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 
 use crate::errors::ErrorKind;
 use crate::jwt::JwtApiClaims;
 use crate::user::{get_by_id, User};
 
 #[derive(Debug, Deserialize, Serialize)]
-#[serde(crate = "rocket::serde")]
 pub struct AddAuthorizationRequest {
     pub for_user_id: String,
     pub application: String,
@@ -34,7 +33,6 @@ impl Display for AddAuthorizationRequest {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-#[serde(crate = "rocket::serde")]
 pub struct IsAuthorizedRequest {
     pub application: String,
     pub uri: String,
@@ -52,7 +50,6 @@ impl Display for IsAuthorizedRequest {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-#[serde(crate = "rocket::serde")]
 pub struct IsJwtApiTokenValidRequest {
     pub token: String,
 }
@@ -64,7 +61,6 @@ impl Display for IsJwtApiTokenValidRequest {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-#[serde(crate = "rocket::serde")]
 pub struct IsAuthorizedResponse {
     pub is_authorized: bool,
 }
@@ -78,7 +74,6 @@ impl Display for IsAuthorizedResponse {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-#[serde(crate = "rocket::serde")]
 pub struct Authorization {
     #[serde(skip_serializing)]
     pub _id: Option<Bson>,

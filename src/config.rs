@@ -1,6 +1,7 @@
 use jsonwebtoken::{DecodingKey, EncodingKey};
 use std::env;
 use std::fmt::{Display, Formatter};
+use std::net::SocketAddr;
 
 #[derive(Clone)]
 pub struct Config<'a> {
@@ -11,6 +12,7 @@ pub struct Config<'a> {
     pub decoding_key: DecodingKey<'a>,
     pub encoding_key: EncodingKey,
     pub application_name: String,
+    pub bind_to: SocketAddr,
 }
 
 fn os_var_as_string(var: &str) -> String {
@@ -43,6 +45,8 @@ impl Config<'_> {
         let decoding_key = DecodingKey::from_base64_secret(&based).unwrap();
         let encoding_key = EncodingKey::from_base64_secret(&based).unwrap();
 
+        let address: SocketAddr = "127.0.0.1:8000".parse().unwrap();
+
         Config {
             environment,
             mongo_url,
@@ -51,6 +55,7 @@ impl Config<'_> {
             decoding_key,
             encoding_key,
             application_name: "bridgekeeper".to_string(),
+            bind_to: address,
         }
     }
 }

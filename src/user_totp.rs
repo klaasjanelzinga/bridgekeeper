@@ -1,15 +1,16 @@
+use std::fmt::{Display, Formatter};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use mongodb::Database;
+use serde::{Deserialize, Serialize};
+use totp_lite::{totp, Sha512};
+
 use crate::config::Config;
 use crate::errors::ErrorKind;
 use crate::user::{LoginResponse, User};
 use crate::{jwt, user, util};
-use mongodb::Database;
-use rocket::serde::{Deserialize, Serialize};
-use std::fmt::{Display, Formatter};
-use std::time::{SystemTime, UNIX_EPOCH};
-use totp_lite::{totp, Sha512};
 
 #[derive(Debug, Deserialize, Serialize)]
-#[serde(crate = "rocket::serde")]
 pub struct StartTotpRegistrationResult {
     pub secret: String,
     pub uri: String,
@@ -23,7 +24,6 @@ impl Display for StartTotpRegistrationResult {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-#[serde(crate = "rocket::serde")]
 pub struct ConfirmTotpResponse {
     pub success: bool,
 }
@@ -37,7 +37,6 @@ impl Display for ConfirmTotpResponse {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-#[serde(crate = "rocket::serde")]
 pub struct ValidateTotpRequest {
     pub totp_challenge: String,
 }

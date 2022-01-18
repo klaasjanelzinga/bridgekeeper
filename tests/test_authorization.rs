@@ -11,21 +11,8 @@ use bridgekeeper_api::authorization::{AddAuthorizationRequest, IsAuthorizedReque
 use bridgekeeper_api::user::User;
 use mongodb::bson::doc;
 
-//
-// use rocket::http::Status;
-//
-// use bridgekeeper_api::authorization::{AddAuthorizationRequest, IsAuthorizedRequest};
-// use bridgekeeper_api::user::User;
-// use mongodb::bson::doc;
-//
-// use crate::common::api_calls::{
-//     add_authorization, create_jwt_api, delete_jwt_api_token, get_user, is_authorized,
-//     is_jwt_api_valid,
-// };
-// use crate::common::fixtures::{create_and_login_admin_user, create_and_login_user};
-//
 mod common;
-//
+
 /// Test the authorization process.
 ///
 /// - Create an admin user (someone with privileges on bridgekeeper).

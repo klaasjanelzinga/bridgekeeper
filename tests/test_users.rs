@@ -12,8 +12,6 @@ use bridgekeeper_api::user::UpdateUserRequest;
 use crate::common::api_calls::{change_password, create_user, get_user, login, update_user};
 use crate::common::fixtures::{create_and_login_user, create_user_request, fake_password};
 
-// TODO Add test on header AUTHENTICATION with bogus bytes, no bytes, non-ascii
-
 mod common;
 
 /// Test get user:

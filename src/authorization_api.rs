@@ -17,14 +17,6 @@ pub async fn add_authorization(
     authenticated_user: AuthorizedUser,
 ) -> Result<Json<Authorization>, ErrorKind> {
     trace!("add_authorization(_, _, {})", authenticated_user);
-    is_user_authorized_for(
-        &authenticated_user.user,
-        "bridgekeeper",
-        "POST",
-        "/user/authorization",
-        &db,
-    )
-    .await?;
     let authorization = create(&add_authorization_request, &db).await?;
     Ok(Json(authorization))
 }

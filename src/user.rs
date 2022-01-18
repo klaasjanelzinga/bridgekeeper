@@ -54,8 +54,6 @@ impl Display for User {
             .field("_id", &self._id)
             .field("user_id", &self.user_id)
             .field("email_address", &self.email_address)
-            .field("first_name", &self.first_name)
-            .field("last_name", &self.last_name)
             .finish()
     }
 }

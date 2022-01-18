@@ -71,7 +71,8 @@ impl Display for AuthorizedUser {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         f.debug_struct("AuthorizedUser")
             .field("claims", &self.jwt_claims)
-            .field("user", &self.user)
+            .field("user.user_id", &self.user.user_id)
+            .field("user.email_address", &self.user.email_address)
             .field("authentication_rule", &self.authorization_rule)
             .finish()
     }

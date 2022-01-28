@@ -45,7 +45,7 @@ impl Config<'_> {
         let decoding_key = DecodingKey::from_base64_secret(&based).unwrap();
         let encoding_key = EncodingKey::from_base64_secret(&based).unwrap();
 
-        let address: SocketAddr = "127.0.0.1:8000".parse().unwrap();
+        let address: SocketAddr = "0.0.0.0:8000".parse().unwrap();
 
         Config {
             environment,
@@ -67,6 +67,7 @@ impl Display for Config<'_> {
             .field("mongo_pass", &self.mongo_url)
             .field("environment", &self.environment)
             .field("mongo_url", &self.masked_mongo_url)
+            .field("bind_to", &self.bind_to)
             .field("application_name", &self.application_name)
             .finish()
     }

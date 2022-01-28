@@ -13,6 +13,7 @@ use crate::avatar_api::{create_or_update_avatar, delete_avatar, get_avatar};
 use mongodb::options::ClientOptions;
 use mongodb::Client;
 use mongodb::Database;
+use tokio::signal;
 use tower::ServiceBuilder;
 use tower_http::sensitive_headers::SetSensitiveRequestHeadersLayer;
 use tower_http::trace::TraceLayer;
@@ -80,6 +81,7 @@ pub async fn launch(db: &Database, config: &Config<'static>) {
     debug!("listening on {}", config.bind_to);
     axum::Server::bind(&config.bind_to)
         .serve(application_routes(db, &config).into_make_service())
+        .with_graceful_shutdown(shutdown_signal())
         .await
         .unwrap();
     ()
@@ -92,4 +94,30 @@ pub async fn create_mongo_connection(config: &Config<'_>) -> Result<Database, Bo
     info!("Mongo db client connected with config {}", config);
     let db = client.database(&config.mongo_db);
     Ok(db)
+}
+
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
+
+    info!("Signal received, starting graceful shutdown...");
 }

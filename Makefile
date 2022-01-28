@@ -20,8 +20,9 @@ check:
 build-release:
 	cargo build --release
 
-install-musl-build: build-release
+install-musl-build:
 	cargo install --target x86_64-unknown-linux-musl --path .
+	strip target/x86_64-unknown-linux-musl/release/bridgekeeper
 
 run-tests-in-docker:
 	docker-compose -f docker-compose-test.yml --env-file etc/test.env up --build --remove-orphans --exit-code-from unittests

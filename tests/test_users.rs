@@ -6,8 +6,8 @@ use fake::faker::name::en::Name;
 use fake::Fake;
 use jsonwebtoken::{decode, Algorithm, Validation};
 
-use bridgekeeper_api::jwt::JwtClaims;
-use bridgekeeper_api::user::UpdateUserRequest;
+use bridgekeeper_api::jwt_models::JwtClaims;
+use bridgekeeper_api::user_models::UpdateUserRequest;
 
 use crate::common::api_calls::{change_password, create_user, get_user, login, update_user};
 use crate::common::fixtures::{create_and_login_user, create_user_request, fake_password};

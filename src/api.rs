@@ -26,15 +26,20 @@ use crate::user_api::{
 
 pub mod authorization;
 pub mod authorization_api;
+pub mod authorization_models;
 pub mod avatar;
 pub mod avatar_api;
+pub mod avatar_models;
 pub mod config;
 pub mod errors;
 pub mod jwt;
+pub mod jwt_models;
 pub mod request_guards;
 pub mod user;
 pub mod user_api;
+pub mod user_models;
 pub mod user_totp;
+pub mod user_totp_models;
 mod util;
 
 pub fn application_routes(db: &Database, config: &Config<'static>) -> Router {

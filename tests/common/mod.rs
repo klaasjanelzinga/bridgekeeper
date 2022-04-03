@@ -9,7 +9,7 @@ use tokio::time::sleep;
 
 use bridgekeeper_api::application_routes;
 use bridgekeeper_api::config::Config;
-use bridgekeeper_api::user::User;
+use bridgekeeper_api::user_models::User;
 
 pub mod api_calls;
 pub mod fixtures;
@@ -32,12 +32,12 @@ pub async fn setup<'a>() -> TestFixtures<'a> {
     LOG_INIT.call_once(|| {
         if env::var_os("RUST_LOG").is_none() {
             pretty_env_logger::formatted_timed_builder()
-                .filter_module("bridgekeeper_api", LevelFilter::Trace)
-                .filter_module("test_users", LevelFilter::Trace)
-                .filter_module("test_totp", LevelFilter::Trace)
-                .filter_module("test_illegal_access", LevelFilter::Trace)
-                .filter_module("tower_http::trace", LevelFilter::Trace)
-                .filter_level(LevelFilter::Info)
+                .filter_module("bridgekeeper_api", LevelFilter::Debug)
+                .filter_module("test_users", LevelFilter::Debug)
+                .filter_module("test_totp", LevelFilter::Debug)
+                .filter_module("test_illegal_access", LevelFilter::Debug)
+                .filter_module("tower_http::trace", LevelFilter::Info)
+                .filter_level(LevelFilter::Warn)
                 .init();
         } else {
             pretty_env_logger::init();

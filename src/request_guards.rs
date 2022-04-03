@@ -8,8 +8,9 @@ use mongodb::Database;
 
 use crate::authorization::is_user_authorized_for;
 use crate::errors::ErrorKind;
-use crate::jwt::JwtClaims;
-use crate::user::{get_by_id, User};
+use crate::jwt_models::JwtClaims;
+use crate::user::get_by_id;
+use crate::user_models::User;
 use crate::Config;
 
 #[derive(Debug)]

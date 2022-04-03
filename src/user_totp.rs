@@ -1,53 +1,15 @@
-use std::fmt::{Display, Formatter};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use mongodb::Database;
-use serde::{Deserialize, Serialize};
 use totp_lite::{totp, Sha512};
 
 use crate::config::Config;
 use crate::errors::ErrorKind;
-use crate::user::{LoginResponse, User};
+use crate::user_models::{LoginResponse, User};
+use crate::user_totp_models::{
+    ConfirmTotpResponse, StartTotpRegistrationResult, ValidateTotpRequest,
+};
 use crate::{jwt, user, util};
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct StartTotpRegistrationResult {
-    pub secret: String,
-    pub uri: String,
-    pub backup_codes: Vec<String>,
-}
-
-impl Display for StartTotpRegistrationResult {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("StartTotpRegistrationResult").finish()
-    }
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct ConfirmTotpResponse {
-    pub success: bool,
-}
-
-impl Display for ConfirmTotpResponse {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ConfirmTotpResponse")
-            .field("success", &self.success)
-            .finish()
-    }
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct ValidateTotpRequest {
-    pub totp_challenge: String,
-}
-
-impl Display for ValidateTotpRequest {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ValidateTotpRequest")
-            .field("totp_challenge", &self.totp_challenge)
-            .finish()
-    }
-}
 
 /// Start the registration process for a TOTP token. The following items will be created:
 /// - an uri: For creating a QR code on the client side.

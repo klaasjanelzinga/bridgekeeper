@@ -7,8 +7,8 @@ use crate::common::api_calls::{
 };
 use crate::common::fixtures::{create_and_login_admin_user, create_and_login_user};
 use axum::http::StatusCode;
-use bridgekeeper_api::authorization::{AddAuthorizationRequest, IsAuthorizedRequest};
-use bridgekeeper_api::user::User;
+use bridgekeeper_api::authorization_models::{AddAuthorizationRequest, IsAuthorizedRequest};
+use bridgekeeper_api::user_models::User;
 use mongodb::bson::doc;
 
 mod common;

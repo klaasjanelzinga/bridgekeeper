@@ -2,10 +2,8 @@ use axum::extract::Extension;
 use axum::Json;
 use mongodb::Database;
 
-use crate::avatar::{
-    delete_avatar_for_user, get_avatar_for_user, upsert_avatar_for_user, GetAvatarResponse,
-    UpdateAvatarRequest, UpdateAvatarResponse,
-};
+use crate::avatar::{delete_avatar_for_user, get_avatar_for_user, upsert_avatar_for_user};
+use crate::avatar_models::{GetAvatarResponse, UpdateAvatarRequest, UpdateAvatarResponse};
 use crate::errors::ErrorKind;
 use crate::request_guards::OtpValidatedJwtToken;
 

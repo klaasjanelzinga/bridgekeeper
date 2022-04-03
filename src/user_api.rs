@@ -5,18 +5,18 @@ use axum::Json;
 use mongodb::Database;
 
 use crate::errors::ErrorKind;
-use crate::jwt::{
-    create_api_jwt_token_for_user, delete_jwt_api_token_for_user, CreateJwtApiRequest,
-    CreateJwtApiResponse,
-};
+use crate::jwt::{create_api_jwt_token_for_user, delete_jwt_api_token_for_user};
+use crate::jwt_models::{CreateJwtApiRequest, CreateJwtApiResponse};
 use crate::request_guards::{JwtToken, OtpValidatedJwtToken};
-use crate::user::{
-    change_password_for_user, create, update, ChangePasswordRequest, ChangePasswordResponse,
-    CreateUserRequest, EmptyOkResponse, GetUserResponse, LoginRequest, LoginResponse,
-    UpdateUserRequest,
+use crate::user::{change_password_for_user, create, update};
+use crate::user_models::{
+    ChangePasswordRequest, ChangePasswordResponse, CreateUserRequest, EmptyOkResponse,
+    GetUserResponse, LoginRequest, LoginResponse, UpdateUserRequest,
 };
 use crate::user_totp::{
     confirm_totp_code_for_user, start_totp_registration_for_user, validate_totp_for_user,
+};
+use crate::user_totp_models::{
     ConfirmTotpResponse, StartTotpRegistrationResult, ValidateTotpRequest,
 };
 use crate::Config;

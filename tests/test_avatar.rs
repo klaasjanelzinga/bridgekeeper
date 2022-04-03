@@ -5,7 +5,7 @@ use axum::http::StatusCode;
 use fake::faker::lorem::en::Paragraphs;
 use fake::Fake;
 
-use bridgekeeper_api::avatar::UpdateAvatarRequest;
+use bridgekeeper_api::avatar_models::UpdateAvatarRequest;
 
 use crate::common::api_calls::{create_or_update_avatar, delete_avatar, get_avatar};
 use crate::common::fixtures::create_and_login_user;

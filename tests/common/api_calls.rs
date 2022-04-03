@@ -4,17 +4,20 @@ use hyper::Body;
 use serde_json::json;
 use tower::ServiceExt;
 
-use bridgekeeper_api::authorization::{
+use bridgekeeper_api::authorization_models::{
     AddAuthorizationRequest, Authorization, IsAuthorizedRequest, IsAuthorizedResponse,
     IsJwtApiTokenValidRequest,
 };
-use bridgekeeper_api::avatar::{GetAvatarResponse, UpdateAvatarRequest, UpdateAvatarResponse};
-use bridgekeeper_api::jwt::{CreateJwtApiRequest, CreateJwtApiResponse};
-use bridgekeeper_api::user::{
-    ChangePasswordRequest, ChangePasswordResponse, CreateUserRequest, EmptyOkResponse,
-    GetUserResponse, LoginRequest, LoginResponse, UpdateUserRequest,
+use bridgekeeper_api::avatar_models::{
+    GetAvatarResponse, UpdateAvatarRequest, UpdateAvatarResponse,
 };
-use bridgekeeper_api::user_totp::{
+use bridgekeeper_api::jwt_models::{CreateJwtApiRequest, CreateJwtApiResponse};
+use bridgekeeper_api::user_models::CreateUserRequest;
+use bridgekeeper_api::user_models::{
+    ChangePasswordRequest, ChangePasswordResponse, EmptyOkResponse, GetUserResponse, LoginRequest,
+    LoginResponse, UpdateUserRequest,
+};
+use bridgekeeper_api::user_totp_models::{
     ConfirmTotpResponse, StartTotpRegistrationResult, ValidateTotpRequest,
 };
 

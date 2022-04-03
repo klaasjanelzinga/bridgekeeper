@@ -7,7 +7,7 @@ use axum::http::StatusCode;
 use jsonwebtoken::{decode, Algorithm, Validation};
 use totp_lite::{totp, Sha512};
 
-use bridgekeeper_api::jwt::JwtClaims;
+use bridgekeeper_api::jwt_models::JwtClaims;
 
 use crate::common::api_calls::{
     confirm_totp, get_avatar, get_user, login, start_totp, validate_totp,

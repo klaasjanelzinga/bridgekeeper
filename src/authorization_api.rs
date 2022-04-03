@@ -1,12 +1,13 @@
-use crate::authorization::{
-    is_jwt_api_token_valid, is_user_authorized_for, AddAuthorizationRequest, Authorization,
-    IsAuthorizedRequest, IsAuthorizedResponse, IsJwtApiTokenValidRequest,
-};
+use crate::authorization::{is_jwt_api_token_valid, is_user_authorized_for};
 use axum::extract::Extension;
 use axum::Json;
 use mongodb::Database;
 
 use crate::authorization::create;
+use crate::authorization_models::{
+    AddAuthorizationRequest, Authorization, IsAuthorizedRequest, IsAuthorizedResponse,
+    IsJwtApiTokenValidRequest,
+};
 use crate::errors::ErrorKind;
 use crate::request_guards::{AuthorizedUser, OtpValidatedJwtToken};
 use crate::Config;

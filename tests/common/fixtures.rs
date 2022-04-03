@@ -7,8 +7,9 @@ use fake::Fake;
 use mongodb::Database;
 use totp_lite::{totp, Sha512};
 
-use bridgekeeper_api::authorization::{create, AddAuthorizationRequest};
-use bridgekeeper_api::user::CreateUserRequest;
+use bridgekeeper_api::authorization::create;
+use bridgekeeper_api::authorization_models::AddAuthorizationRequest;
+use bridgekeeper_api::user_models::CreateUserRequest;
 
 use crate::common::api_calls::{confirm_totp, create_user, login, start_totp, validate_totp};
 

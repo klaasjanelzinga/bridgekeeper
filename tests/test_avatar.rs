@@ -28,7 +28,7 @@ async fn test_get_avatar_and_create() {
     let login_data = create_and_login_user(&test_fixtures.app).await;
 
     // Get while no avatar is available. Should return Not found
-    let response = get_avatar(&test_fixtures.app, &login_data.token).await;
+    let response = get_avatar(&test_fixtures.app, &login_data.access_token).await;
     assert!(response.is_err());
     assert_eq!(response.err().unwrap(), StatusCode::NOT_FOUND);
 
@@ -39,14 +39,14 @@ async fn test_get_avatar_and_create() {
     };
     let response = create_or_update_avatar(
         &test_fixtures.app,
-        &login_data.token,
+        &login_data.access_token,
         &update_avatar_request,
     )
     .await;
     assert!(response.is_ok());
 
     // The get should now return an avatar.
-    let response = get_avatar(&test_fixtures.app, &login_data.token)
+    let response = get_avatar(&test_fixtures.app, &login_data.access_token)
         .await
         .unwrap();
     assert_eq!(response.user_id, login_data.user_id);
@@ -58,24 +58,24 @@ async fn test_get_avatar_and_create() {
     };
     let response = create_or_update_avatar(
         &test_fixtures.app,
-        &login_data.token,
+        &login_data.access_token,
         &update_avatar_request,
     )
     .await;
     assert!(response.is_ok());
 
     // The get should now return the avatar "new-avatar-data"
-    let response = get_avatar(&test_fixtures.app, &login_data.token)
+    let response = get_avatar(&test_fixtures.app, &login_data.access_token)
         .await
         .unwrap();
     assert_eq!(response.user_id, login_data.user_id);
     assert_eq!(response.avatar_base64, "new-avatar-data");
 
     // Delete the avatar.
-    let response = delete_avatar(&test_fixtures.app, &login_data.token).await;
+    let response = delete_avatar(&test_fixtures.app, &login_data.access_token).await;
     assert!(response.is_ok());
 
-    let response = get_avatar(&test_fixtures.app, &login_data.token).await;
+    let response = get_avatar(&test_fixtures.app, &login_data.access_token).await;
     assert!(response.is_err());
     assert_eq!(response.err().unwrap(), StatusCode::NOT_FOUND);
 

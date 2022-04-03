@@ -7,6 +7,11 @@ use crate::avatar_models::{GetAvatarResponse, UpdateAvatarRequest, UpdateAvatarR
 use crate::errors::ErrorKind;
 use crate::request_guards::AccessToken;
 
+/// Retrieve the avatar for the user identified by the access token.
+///
+/// Authorization: Access Token.
+///
+/// Resources: Database.
 pub async fn get_avatar(
     Extension(db): Extension<Database>,
     jwt_token: AccessToken,
@@ -16,6 +21,11 @@ pub async fn get_avatar(
     Ok(Json(get_avatar))
 }
 
+/// Delete the avatar for the user identified by the access token.
+///
+/// Authorization: Access Token.
+///
+/// Resources: Database.
 pub async fn delete_avatar(
     Extension(db): Extension<Database>,
     jwt_token: AccessToken,
@@ -25,6 +35,11 @@ pub async fn delete_avatar(
     Ok(Json(UpdateAvatarResponse { result: true }))
 }
 
+/// Update the avatar for the user identified by the access token.
+///
+/// Authorization: Access Token.
+///
+/// Resources: Database.
 pub async fn create_or_update_avatar(
     Json(update_avatar_request): Json<UpdateAvatarRequest>,
     Extension(db): Extension<Database>,

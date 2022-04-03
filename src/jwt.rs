@@ -36,10 +36,7 @@ pub fn create_token_for_user(
     let token_result = encode(&Header::default(), &jwt_claims, encoding_key)
         .or(Err(ErrorKind::CannotCreateJwtToken));
     match token_result {
-        Ok(token) => Ok(JwtCreationResponse {
-            token,
-            token_id: token_id.clone(),
-        }),
+        Ok(token) => Ok(JwtCreationResponse { token, token_id }),
         Err(error) => Err(error),
     }
 }

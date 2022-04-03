@@ -200,6 +200,82 @@ where
     }
 }
 
+/// Request guard that validates the jwt token. The result is a JwtToken object.
+/// After this guard:
+/// - The authorization header is present and syntactically ok.
+/// - The claims are decoded from the bearer token.
+/// - The user exists in the datastore.
+/// - The token is an one shot token token.
+#[async_trait]
+impl<B> FromRequest<B> for OneShotToken
+where
+    B: Send,
+{
+    type Rejection = ErrorKind;
+
+    async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
+        let authorization_header = AuthorizationHeader::from_request(req).await?;
+        let config = config_from_extension(req).unwrap();
+        let db = database_from_extension(req).unwrap();
+
+        match decode::<JwtClaims>(
+            &authorization_header.bearer_token,
+            &config.decoding_key,
+            &Validation::new(Algorithm::HS256),
+        ) {
+            Ok(token_data) => {
+                let jwt_claims = token_data.claims;
+                match jwt_claims.token_type {
+                    JwtType::OneShotToken => match get_by_id(&jwt_claims.user_id, &db).await {
+                        Ok(user) => Ok(OneShotToken { user, jwt_claims }),
+                        Err(_) => Err(ErrorKind::TokenInvalid),
+                    },
+                    _ => Err(ErrorKind::TokenInvalid),
+                }
+            }
+            Err(_) => Err(ErrorKind::TokenInvalid),
+        }
+    }
+}
+
+/// Request guard that validates the jwt token. The result is a JwtToken object.
+/// After this guard:
+/// - The authorization header is present and syntactically ok.
+/// - The claims are decoded from the bearer token.
+/// - The user exists in the datastore.
+/// - The token is a refresh token (aka bearer token).
+#[async_trait]
+impl<B> FromRequest<B> for RefreshToken
+where
+    B: Send,
+{
+    type Rejection = ErrorKind;
+
+    async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
+        let authorization_header = AuthorizationHeader::from_request(req).await?;
+        let config = config_from_extension(req).unwrap();
+        let db = database_from_extension(req).unwrap();
+
+        match decode::<JwtClaims>(
+            &authorization_header.bearer_token,
+            &config.decoding_key,
+            &Validation::new(Algorithm::HS256),
+        ) {
+            Ok(token_data) => {
+                let jwt_claims = token_data.claims;
+                match jwt_claims.token_type {
+                    JwtType::RefreshToken => match get_by_id(&jwt_claims.user_id, &db).await {
+                        Ok(user) => Ok(RefreshToken { user, jwt_claims }),
+                        Err(_) => Err(ErrorKind::TokenInvalid),
+                    },
+                    _ => Err(ErrorKind::TokenInvalid),
+                }
+            }
+            Err(_) => Err(ErrorKind::TokenInvalid),
+        }
+    }
+}
+
 /// Request guard that checks if the user has access to the resource requested.
 #[async_trait]
 impl<B> FromRequest<B> for AuthorizedUser

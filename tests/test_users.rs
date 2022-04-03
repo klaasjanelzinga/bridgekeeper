@@ -6,7 +6,7 @@ use fake::faker::name::en::Name;
 use fake::Fake;
 use jsonwebtoken::{decode, Algorithm, Validation};
 
-use bridgekeeper_api::jwt_models::JwtClaims;
+use bridgekeeper_api::jwt_models::{JwtClaims, JwtType};
 use bridgekeeper_api::user_models::UpdateUserRequest;
 
 use crate::common::api_calls::{change_password, create_user, get_user, login, update_user};
@@ -25,7 +25,7 @@ async fn test_get_user() {
 
     let login_data = create_and_login_user(&test_fixtures.app).await;
 
-    let get_user_response = get_user(&test_fixtures.app, &login_data.token).await;
+    let get_user_response = get_user(&test_fixtures.app, &login_data.access_token).await;
     assert!(get_user_response.is_ok());
     let get_user_data = get_user_response.unwrap();
 
@@ -108,8 +108,12 @@ async fn test_update_user() {
         display_name: Some(Name().fake()),
     };
 
-    let updated_user_response =
-        update_user(&test_fixtures.app, &update_user_request, &login_data.token).await;
+    let updated_user_response = update_user(
+        &test_fixtures.app,
+        &update_user_request,
+        &login_data.access_token,
+    )
+    .await;
     assert!(updated_user_response.is_ok());
 
     let updated_user = updated_user_response.unwrap();
@@ -121,7 +125,7 @@ async fn test_update_user() {
     );
     assert_eq!(updated_user.display_name, update_user_request.display_name);
 
-    let get_user_response = get_user(&test_fixtures.app, &login_data.token).await;
+    let get_user_response = get_user(&test_fixtures.app, &login_data.access_token).await;
     assert!(get_user_response.is_ok());
     let get_user = get_user_response.unwrap();
     assert_eq!(get_user.first_name, update_user_request.first_name);
@@ -145,13 +149,16 @@ async fn test_login_user() {
     let login_data = create_and_login_user(&test_fixtures.app).await;
 
     let token_message = decode::<JwtClaims>(
-        &login_data.token,
+        &login_data.access_token,
         &test_fixtures.config.decoding_key,
         &Validation::new(Algorithm::HS256),
     )
     .unwrap();
     assert_eq!(token_message.claims.email_address, login_data.email_address);
-    assert_eq!(token_message.claims.requires_otp_challenge, false);
+    assert_eq!(
+        token_message.claims.token_type.to_string(),
+        JwtType::AccessToken.to_string()
+    );
 
     let wrong_password = login(
         &test_fixtures.app,
@@ -192,7 +199,7 @@ async fn test_change_password() {
 
     let change_password_response_result = change_password(
         &test_fixtures.app,
-        &login_data.token,
+        &login_data.access_token,
         &login_data.password,
         &new_password,
     )
@@ -220,7 +227,7 @@ async fn test_change_password() {
     // Change password with invalid current password.
     let change_password_response_result = change_password(
         &test_fixtures.app,
-        &login_data.token,
+        &login_data.access_token,
         &login_data.password,
         &new_password,
     )
@@ -243,7 +250,7 @@ async fn test_change_password() {
     for invalid_password in invalid_passwords {
         let change_password_response_result = change_password(
             &test_fixtures.app,
-            &login_data.token,
+            &login_data.access_token,
             &new_password,
             invalid_password,
         )

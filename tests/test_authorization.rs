@@ -51,8 +51,12 @@ async fn test_authorization() {
         },
     ];
     for regular_privilege in regular_priviliges {
-        let auth_result =
-            add_authorization(&test_fixtures.app, &admin_user.token, &regular_privilege).await;
+        let auth_result = add_authorization(
+            &test_fixtures.app,
+            &admin_user.access_token,
+            &regular_privilege,
+        )
+        .await;
         assert!(auth_result.is_ok());
     }
 
@@ -85,7 +89,7 @@ async fn test_authorization() {
     ];
     for valid in valid_authentications {
         let is_authorized_response =
-            is_authorized(&test_fixtures.app, &regular_user.token, &valid).await;
+            is_authorized(&test_fixtures.app, &regular_user.access_token, &valid).await;
         assert!(is_authorized_response.is_ok());
     }
 
@@ -123,7 +127,7 @@ async fn test_authorization() {
     ];
     for invalid in invalids {
         let is_authorized_response =
-            is_authorized(&test_fixtures.app, &regular_user.token, &invalid).await;
+            is_authorized(&test_fixtures.app, &regular_user.access_token, &invalid).await;
         assert!(is_authorized_response.is_err());
         assert_eq!(
             is_authorized_response.err().unwrap(),
@@ -149,7 +153,7 @@ async fn test_add_authorization() {
     // regular user cannot give privileges
     let result = add_authorization(
         &test_fixtures.app,
-        &regular_user.token,
+        &regular_user.access_token,
         &AddAuthorizationRequest {
             for_user_id: regular_user.user_id.clone(),
             application: "bridgekeeper".to_string(),
@@ -164,7 +168,7 @@ async fn test_add_authorization() {
     // admin_user can.
     let result = add_authorization(
         &test_fixtures.app,
-        &admin_user.token,
+        &admin_user.access_token,
         &AddAuthorizationRequest {
             for_user_id: admin_user.user_id.clone(),
             application: "bridgekeeper".to_string(),
@@ -190,7 +194,7 @@ async fn test_jwt_api_token_regular_flow() {
 
     let regular_user = create_and_login_user(&test_fixtures.app).await;
 
-    let result = create_jwt_api(&test_fixtures.app, &regular_user.token, "api")
+    let result = create_jwt_api(&test_fixtures.app, &regular_user.access_token, "api")
         .await
         .expect("Should work");
     assert!(result.token.len() > 10);
@@ -199,7 +203,7 @@ async fn test_jwt_api_token_regular_flow() {
     assert!(is_valid.is_ok());
 
     let delete_response =
-        delete_jwt_api_token(&test_fixtures.app, &regular_user.token, "api").await;
+        delete_jwt_api_token(&test_fixtures.app, &regular_user.access_token, "api").await;
     assert!(delete_response.is_ok());
 
     let is_valid = is_jwt_api_valid(&test_fixtures.app, &result.token).await;
@@ -223,10 +227,10 @@ async fn test_multiple_jwt_api_token_regular_flow() {
 
     let regular_user = create_and_login_user(&test_fixtures.app).await;
 
-    let result_1 = create_jwt_api(&test_fixtures.app, &regular_user.token, "api")
+    let result_1 = create_jwt_api(&test_fixtures.app, &regular_user.access_token, "api")
         .await
         .expect("Should work");
-    let result_2 = create_jwt_api(&test_fixtures.app, &regular_user.token, "api2")
+    let result_2 = create_jwt_api(&test_fixtures.app, &regular_user.access_token, "api2")
         .await
         .expect("Should work");
 
@@ -241,7 +245,7 @@ async fn test_multiple_jwt_api_token_regular_flow() {
         .unwrap();
 
     // delete token with id api
-    delete_jwt_api_token(&test_fixtures.app, &regular_user.token, "api")
+    delete_jwt_api_token(&test_fixtures.app, &regular_user.access_token, "api")
         .await
         .ok()
         .unwrap();
@@ -257,7 +261,7 @@ async fn test_multiple_jwt_api_token_regular_flow() {
         .unwrap();
 
     // Update api2, result_2 no longer works, result_3 works.
-    let result_3 = create_jwt_api(&test_fixtures.app, &regular_user.token, "api2")
+    let result_3 = create_jwt_api(&test_fixtures.app, &regular_user.access_token, "api2")
         .await
         .expect("Should work");
     is_jwt_api_valid(&test_fixtures.app, &result_2.token)
@@ -284,14 +288,14 @@ async fn test_validity_token_with_missing_user() {
 
     let regular_user = create_and_login_user(&test_fixtures.app).await;
 
-    let result_1 = create_jwt_api(&test_fixtures.app, &regular_user.token, "api")
+    let result_1 = create_jwt_api(&test_fixtures.app, &regular_user.access_token, "api")
         .await
         .expect("Should work");
     is_jwt_api_valid(&test_fixtures.app, &result_1.token)
         .await
         .ok()
         .unwrap();
-    get_user(&test_fixtures.app, &regular_user.token)
+    get_user(&test_fixtures.app, &regular_user.access_token)
         .await
         .unwrap();
 
@@ -306,7 +310,7 @@ async fn test_validity_token_with_missing_user() {
         .err()
         .unwrap();
     assert_eq!(err, StatusCode::UNAUTHORIZED);
-    let err = get_user(&test_fixtures.app, &regular_user.token)
+    let err = get_user(&test_fixtures.app, &regular_user.access_token)
         .await
         .err()
         .unwrap();

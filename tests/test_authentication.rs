@@ -4,7 +4,10 @@ extern crate log;
 use crate::common::api_calls::get_user;
 use axum::http;
 
-use crate::common::fixtures::create_and_login_user;
+use crate::common::fixtures::{
+    create_and_login_user, create_and_login_user_with_totp,
+    create_and_login_user_with_totp_not_totp_verified,
+};
 use axum::http::{Request, StatusCode};
 use hyper::Body;
 use mongodb::bson::doc;
@@ -23,15 +26,15 @@ async fn test_invalid_authentication_header() {
 
     let regular_user = create_and_login_user(&test_fixtures.app).await;
 
-    let result = get_user(&test_fixtures.app, &regular_user.token).await;
+    let result = get_user(&test_fixtures.app, &regular_user.access_token).await;
     assert!(result.is_ok());
 
     let invalid_headers = [
-        format!("Bearer-{}", regular_user.token),
-        format!("Bearer {}=", regular_user.token),
+        format!("Bearer-{}", regular_user.access_token),
+        format!("Bearer {}=", regular_user.access_token),
         "Bearer ".to_string(),
         "Bἐarἐr ὀ".to_string(),
-        format!("123123-{}", regular_user.token),
+        format!("123123-{}", regular_user.access_token),
         "".to_string(),
         "\tx123".to_string(),
     ];
@@ -67,6 +70,49 @@ async fn test_invalid_authentication_header() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+
+    ()
+}
+
+/// Test different tokens with different purposes.
+/// - Login a regular user (with a bearer token), a totp user (with refresh and bearer) and totp.
+/// - Use different tokens in different scenarios.
+#[tokio::test]
+async fn test_token_types() {
+    let test_fixtures = common::setup().await;
+    common::empty_users_collection(&test_fixtures.db).await;
+
+    let regular_user = create_and_login_user(&test_fixtures.app).await;
+    let totp_user = create_and_login_user_with_totp(&test_fixtures.app).await;
+    let totp_user_without_totp_validation =
+        create_and_login_user_with_totp_not_totp_verified(&test_fixtures.app).await;
+
+    // bearer token should work on resources that require the access token.
+    get_user(&test_fixtures.app, &regular_user.access_token)
+        .await
+        .unwrap();
+    get_user(&test_fixtures.app, &totp_user.access_token)
+        .await
+        .unwrap();
+
+    // refresh token on a resource should not work. => UNAUTHORIZED
+    assert_eq!(
+        get_user(&test_fixtures.app, &totp_user.refresh_token.unwrap())
+            .await
+            .err(),
+        Some(StatusCode::UNAUTHORIZED)
+    );
+
+    // one shot tokens on a resource should not work. => UNAUTHORIZED
+    assert_eq!(
+        get_user(
+            &test_fixtures.app,
+            &totp_user_without_totp_validation.access_token
+        )
+        .await
+        .err(),
+        Some(StatusCode::UNAUTHORIZED)
+    );
 
     ()
 }

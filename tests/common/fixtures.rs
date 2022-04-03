@@ -19,7 +19,8 @@ pub fn fake_password() -> String {
 
 pub struct CreateAndLoginData {
     pub user_id: String,
-    pub token: String,
+    pub access_token: String,
+    pub refresh_token: Option<String>,
     pub email_address: String,
     pub password: String,
     pub first_name: String,
@@ -63,7 +64,8 @@ pub async fn create_and_login_user(router: &Router) -> CreateAndLoginData {
     assert_eq!(login_response.needs_otp, false);
 
     return CreateAndLoginData {
-        token: login_response.token,
+        access_token: login_response.token,
+        refresh_token: None,
         user_id: created_user.user_id,
         email_address: created_user.email_address,
         password: create_user_request.new_password,
@@ -97,12 +99,12 @@ pub async fn create_and_login_user_with_totp_not_totp_verified(
     router: &Router,
 ) -> CreateAndLoginData {
     let user = create_and_login_user(&router).await;
-    let totp_start = start_totp(&router, &user.token)
+    let totp_start = start_totp(&router, &user.access_token)
         .await
         .expect("Start of the totp should succeed");
     confirm_totp(
         &router,
-        &user.token,
+        &user.access_token,
         &calculate_totp_value(&totp_start.secret),
     )
     .await
@@ -113,7 +115,8 @@ pub async fn create_and_login_user_with_totp_not_totp_verified(
 
     return CreateAndLoginData {
         user_id: user.user_id.clone(),
-        token: second_login.token.clone(),
+        access_token: second_login.token.clone(),
+        refresh_token: None,
         email_address: user.email_address.clone(),
         password: user.password.clone(),
         first_name: user.first_name.clone(),
@@ -130,7 +133,7 @@ pub async fn create_and_login_user_with_totp(router: &Router) -> CreateAndLoginD
     let totp_secret = unverified.totp_secret.expect("Secret is needed");
     let validated_totp_response = validate_totp(
         router,
-        &unverified.token,
+        &unverified.access_token,
         &calculate_totp_value(&totp_secret),
     )
     .await
@@ -138,8 +141,9 @@ pub async fn create_and_login_user_with_totp(router: &Router) -> CreateAndLoginD
 
     return CreateAndLoginData {
         user_id: unverified.user_id.clone(),
-        token: validated_totp_response.token.clone(),
-        email_address: unverified.email_address.clone(),
+        access_token: validated_totp_response.access_token,
+        refresh_token: Some(validated_totp_response.refresh_token),
+        email_address: unverified.email_address,
         password: unverified.password.clone(),
         first_name: unverified.first_name.clone(),
         last_name: unverified.last_name.clone(),

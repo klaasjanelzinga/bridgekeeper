@@ -142,9 +142,9 @@ pub async fn login(
             let otp_is_configured = user.otp_hash.is_some();
 
             let token = if otp_is_configured {
-                create_access_token(&user, &config.encoding_key)
-            } else {
                 create_one_shot_token(&user, &config.encoding_key)
+            } else {
+                create_access_token(&user, &config.encoding_key)
             }?;
 
             Ok(LoginResponse {

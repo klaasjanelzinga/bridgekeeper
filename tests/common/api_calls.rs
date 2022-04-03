@@ -12,11 +12,11 @@ use bridgekeeper_api::avatar_models::{
     GetAvatarResponse, UpdateAvatarRequest, UpdateAvatarResponse,
 };
 use bridgekeeper_api::jwt_models::{CreateJwtApiRequest, CreateJwtApiResponse};
-use bridgekeeper_api::user_models::CreateUserRequest;
 use bridgekeeper_api::user_models::{
     ChangePasswordRequest, ChangePasswordResponse, EmptyOkResponse, GetUserResponse, LoginRequest,
     LoginResponse, UpdateUserRequest,
 };
+use bridgekeeper_api::user_models::{CreateUserRequest, LoginWithOtpResponse};
 use bridgekeeper_api::user_totp_models::{
     ConfirmTotpResponse, StartTotpRegistrationResult, ValidateTotpRequest,
 };
@@ -227,7 +227,7 @@ pub async fn validate_totp(
     router: &Router,
     token: &str,
     totp_challenge: &str,
-) -> Result<LoginResponse, StatusCode> {
+) -> Result<LoginWithOtpResponse, StatusCode> {
     let validate_totp_request = ValidateTotpRequest {
         totp_challenge: totp_challenge.to_string(),
     };

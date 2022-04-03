@@ -80,11 +80,10 @@ pub fn application_routes(db: &Database, config: &Config<'static>) -> Router {
 pub async fn launch(db: &Database, config: &Config<'static>) {
     debug!("listening on {}", config.bind_to);
     axum::Server::bind(&config.bind_to)
-        .serve(application_routes(db, &config).into_make_service())
+        .serve(application_routes(db, config).into_make_service())
         .with_graceful_shutdown(shutdown_signal())
         .await
         .unwrap();
-    ()
 }
 
 pub async fn create_mongo_connection(config: &Config<'_>) -> Result<Database, Box<dyn Error>> {

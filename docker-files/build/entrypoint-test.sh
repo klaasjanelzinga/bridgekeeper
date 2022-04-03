@@ -13,4 +13,4 @@ do
   set -e
 done
 
-make check test
+make check tests

@@ -130,7 +130,7 @@ pub async fn confirm_totp_code_for_user(
     db: &Database,
 ) -> Result<ConfirmTotpResponse, ErrorKind> {
     trace!("confirm_totp_code_for_user({}, _)", user);
-    if user.pending_otp_hash.is_none() || user.pending_backup_codes.len() == 0 {
+    if user.pending_otp_hash.is_none() || user.pending_backup_codes.is_empty() {
         return Err(ErrorKind::IllegalRequest {
             message: String::from("No pending otp codes found"),
         });
@@ -165,9 +165,9 @@ pub fn validate_totp_for_user(
     request: &ValidateTotpRequest,
 ) -> Result<LoginResponse, ErrorKind> {
     validate_totp(&user.otp_hash, &request.totp_challenge)?;
-    let token = jwt::create_otp_validated_jwt_token(&user, &config.encoding_key)?;
+    let token = jwt::create_otp_validated_jwt_token(user, &config.encoding_key)?;
     Ok(LoginResponse {
         needs_otp: false,
-        token: token,
+        token,
     })
 }

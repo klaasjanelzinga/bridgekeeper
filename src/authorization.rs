@@ -156,8 +156,8 @@ pub async fn is_user_authorized_for(
         let method_regex = Regex::new(&authorization.method_regex).unwrap();
 
         // application is matched, user_id is matched.
-        let uri_is_matched = uri_regex.is_match(&uri);
-        let method_is_matched = method_regex.is_match(&method);
+        let uri_is_matched = uri_regex.is_match(uri);
+        let method_is_matched = method_regex.is_match(method);
         if uri_is_matched && method_is_matched {
             return Ok(authorization.to_string());
         }
@@ -185,7 +185,7 @@ pub async fn is_jwt_api_token_valid(
 ) -> Result<bool, ErrorKind> {
     trace!("is_jwt_api_token_valid(_, _, _)");
     match decode::<JwtApiClaims>(
-        &token,
+        token,
         &config.decoding_key,
         &Validation::new(Algorithm::HS256),
     ) {

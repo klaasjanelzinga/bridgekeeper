@@ -17,7 +17,12 @@ pub struct Config<'a> {
 
 fn os_var_as_string(var: &str) -> String {
     env::var_os(var)
-        .expect(format!("Environment {} not set", var).as_ref())
+        .unwrap_or_else(|| {
+            panic!(
+                "{}",
+                format!("Environment {} not set. Cannot start application", var)
+            )
+        })
         .into_string()
         .unwrap()
 }

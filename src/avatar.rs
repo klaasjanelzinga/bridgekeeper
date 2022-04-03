@@ -89,7 +89,7 @@ pub async fn get_avatar_for_user(
     let avatar = get_avatar(&avatar_collection, &user.user_id).await?;
     Ok(GetAvatarResponse {
         avatar_base64: avatar.image_base64_blob.clone(),
-        user_id: avatar.user_id.clone(),
+        user_id: avatar.user_id,
     })
 }
 

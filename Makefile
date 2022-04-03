@@ -1,13 +1,15 @@
+.PHONY: tests
+
 dev-infra-up:
 	docker-compose --env-file etc/dev.env up --detach mongo mongo-express
 
 dev-infra-down:
 	docker-compose --env-file etc/dev.env down
 
-test:
+tests:
 	RUST_BACKTRACE=1 cargo test
 
-format:
+fix:
 	cargo fmt --all
 	cargo check
 	cargo check --tests
@@ -15,6 +17,7 @@ format:
 check:
 	cargo fmt --all -- --check
 	cargo check
+	cargo clippy -- -D warnings
 	cargo check --tests
 
 build-release:

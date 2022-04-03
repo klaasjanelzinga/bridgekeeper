@@ -2,12 +2,29 @@ use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Serialize, Deserialize)]
+pub enum JwtType {
+    AccessToken,
+    RefreshToken,
+    OneShotToken,
+}
+
+impl Display for JwtType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match *self {
+            JwtType::RefreshToken => write!(f, "RefreshToken"),
+            JwtType::OneShotToken => write!(f, "OneShotToken"),
+            JwtType::AccessToken => write!(f, "AccessToken"),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct JwtClaims {
     pub email_address: String,
     pub user_id: String,
+    pub token_id: String,
+    pub token_type: JwtType,
     pub exp: usize,
-    pub requires_otp_challenge: bool,
-    pub otp_is_validated: bool,
 }
 
 impl Display for JwtClaims {
@@ -15,7 +32,7 @@ impl Display for JwtClaims {
         f.debug_struct("JwtClaims")
             .field("email_address", &self.email_address)
             .field("user_id", &self.user_id)
-            .field("requires_otp_challenge", &self.requires_otp_challenge)
+            .field("token_type", &self.token_type)
             .finish()
     }
 }
@@ -61,4 +78,9 @@ impl Display for CreateJwtApiResponse {
             .field("token", &self.token)
             .finish()
     }
+}
+
+pub struct JwtCreationResponse {
+    pub token: String,
+    pub token_id: String,
 }

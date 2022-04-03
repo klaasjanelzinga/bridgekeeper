@@ -42,6 +42,14 @@ pub mod user_totp;
 pub mod user_totp_models;
 mod util;
 
+/// Three types of token:
+/// - One-shot token.
+/// - Access token (bearer token).
+/// - Refresh token (rotating, for one time use).
+///
+/// Method:
+/// user/login: returns or a bearer token of a one-shot-token if otp validation is configured.
+/// user:
 pub fn application_routes(db: &Database, config: &Config<'static>) -> Router {
     Router::new()
         .route("/user", get(get_user).post(create_user).put(update_user))

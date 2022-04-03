@@ -4,7 +4,7 @@ use mongodb::{Collection, Database};
 
 use crate::errors::ErrorKind;
 use crate::errors::ErrorKind::EntityNotFound;
-use crate::jwt::create_jwt_token;
+use crate::jwt::{create_access_token, create_one_shot_token};
 use crate::user_models::{
     ChangePasswordRequest, ChangePasswordResponse, CreateUserRequest, GetUserResponse,
     LoginRequest, LoginResponse, UpdateUserRequest, User,
@@ -116,9 +116,14 @@ async fn get_by_email(email_address: &str, db: &Database) -> Result<User, ErrorK
 /// ## Args:
 /// - login_request: The login request containing the email address and the password.
 /// - db: The mongo db.
+/// - config: Application configuration.
 ///
 /// ## Returns:
-/// The jwt token if succeeded or:
+/// If the username password combination is correct,
+///     and there is no otp configured -> An access token is returned.
+///     and there is an otp configured -> An one-shot token is returned.
+///
+/// Errors:
 /// - PasswordIncorrect - if the password is incorrect.
 /// - EntityNotFound - if the email address is not known.
 pub async fn login(
@@ -134,10 +139,17 @@ pub async fn login(
             if !valid_password {
                 return Err(ErrorKind::PasswordIncorrect);
             }
-            let token = create_jwt_token(&user, &config.encoding_key)?;
+            let otp_is_configured = user.otp_hash.is_some();
+
+            let token = if otp_is_configured {
+                create_access_token(&user, &config.encoding_key)
+            } else {
+                create_one_shot_token(&user, &config.encoding_key)
+            }?;
+
             Ok(LoginResponse {
-                needs_otp: user.otp_hash.is_some(),
-                token,
+                needs_otp: otp_is_configured,
+                token: token.token,
             })
         }
     }
@@ -186,6 +198,7 @@ pub async fn create(
         otp_backup_codes: vec![],
         pending_otp_hash: None,
         pending_backup_codes: vec![],
+        refresh_token_id: None,
         is_approved: false,
         user_jwt_api_token: vec![],
     };

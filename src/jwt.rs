@@ -3,62 +3,93 @@ use jsonwebtoken::{encode, EncodingKey, Header};
 use mongodb::Database;
 
 use crate::errors::ErrorKind;
-use crate::jwt_models::{JwtApiClaims, JwtClaims};
+use crate::jwt_models::{JwtApiClaims, JwtClaims, JwtCreationResponse, JwtType};
 use crate::user::update_user;
 use crate::user_models::{User, UserJwtApiToken};
-use crate::util::random_string;
+use crate::util::{create_id, random_string};
 
-/// Creates a JWT for the user. The email address and the user id are in the JwtClaims.
-///
-/// ## Args:
-/// - user: The user to create the JWT for.
-///
-/// ## Returns:
-/// The JWT as a string or an Error.
-pub fn create_jwt_token(user: &User, encoding_key: &EncodingKey) -> Result<String, ErrorKind> {
-    trace!("create_jwt_token({})", user);
-    let expiration = Utc::now()
-        .checked_add_signed(chrono::Duration::days(20))
-        .expect("valid timestamp")
-        .timestamp();
-
-    let jwt_claims = JwtClaims {
-        email_address: user.email_address.clone(),
-        user_id: user.user_id.clone(),
-        exp: expiration as usize,
-        requires_otp_challenge: user.otp_hash.is_some(),
-        otp_is_validated: false,
-    };
-
-    encode(&Header::default(), &jwt_claims, encoding_key).or(Err(ErrorKind::CannotCreateJwtToken))
-}
-
-/// Creates a JWT for the user. The email address and the user id are in the JwtClaims.
-///
-/// ## Args:
-/// - user: The user to create the JWT for.
-///
-/// ## Returns:
-/// The JWT as a string or an Error.
-pub fn create_otp_validated_jwt_token(
+/// Create a specific token for a user. Depending on the type a expiration time will be set.
+pub fn create_token_for_user(
+    token_type: JwtType,
     user: &User,
     encoding_key: &EncodingKey,
-) -> Result<String, ErrorKind> {
-    trace!("create_otp_validated_jwt_token({})", user);
+) -> Result<JwtCreationResponse, ErrorKind> {
+    let expiration_timestamp = match token_type {
+        JwtType::OneShotToken => chrono::Duration::minutes(5),
+        JwtType::RefreshToken => chrono::Duration::days(4),
+        JwtType::AccessToken => chrono::Duration::hours(3),
+    };
     let expiration = Utc::now()
-        .checked_add_signed(chrono::Duration::days(30))
+        .checked_add_signed(expiration_timestamp)
         .expect("valid timestamp")
         .timestamp();
+    let token_id = create_id();
 
     let jwt_claims = JwtClaims {
         email_address: user.email_address.clone(),
         user_id: user.user_id.clone(),
+        token_id: token_id.clone(),
+        token_type,
         exp: expiration as usize,
-        requires_otp_challenge: false,
-        otp_is_validated: true,
     };
 
-    encode(&Header::default(), &jwt_claims, encoding_key).or(Err(ErrorKind::CannotCreateJwtToken))
+    let token_result = encode(&Header::default(), &jwt_claims, encoding_key)
+        .or(Err(ErrorKind::CannotCreateJwtToken));
+    match token_result {
+        Ok(token) => Ok(JwtCreationResponse {
+            token,
+            token_id: token_id.clone(),
+        }),
+        Err(error) => Err(error),
+    }
+}
+
+/// Creates a access token for the user. The email address and the user id are in the JwtClaims.
+///
+/// ## Args:
+/// - user: The user to create the JWT for.
+/// - encoding_key: The encoding key for the encrypted jwt.
+///
+/// ## Returns:
+/// The JWT as a string or an Error.
+pub fn create_access_token(
+    user: &User,
+    encoding_key: &EncodingKey,
+) -> Result<JwtCreationResponse, ErrorKind> {
+    trace!("create_access_token({})", user);
+    create_token_for_user(JwtType::AccessToken, user, encoding_key)
+}
+
+/// Creates a refresh token for the user. The email address and the user id are in the JwtClaims.
+///
+/// ## Args:
+/// - user: The user to create the JWT for.
+/// - encoding_key: The encoding key for the encrypted jwt.
+///
+/// ## Returns:
+/// The JWT as a string or an Error.
+pub fn create_refresh_token(
+    user: &User,
+    encoding_key: &EncodingKey,
+) -> Result<JwtCreationResponse, ErrorKind> {
+    trace!("create_refresh_token({})", user);
+    create_token_for_user(JwtType::RefreshToken, user, encoding_key)
+}
+
+/// Creates a one shot token for the user. The email address and the user id are in the JwtClaims.
+///
+/// ## Args:
+/// - user: The user to create the JWT for.
+/// - encoding_key: The encoding key for the encrypted jwt.
+///
+/// ## Returns:
+/// The JWT as a string or an Error.
+pub fn create_one_shot_token(
+    user: &User,
+    encoding_key: &EncodingKey,
+) -> Result<JwtCreationResponse, ErrorKind> {
+    trace!("create_one_shot_token({})", user);
+    create_token_for_user(JwtType::OneShotToken, user, encoding_key)
 }
 
 /// Create an api jwt token. This token can be used for a third party application to act on behalf

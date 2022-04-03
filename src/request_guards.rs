@@ -8,7 +8,7 @@ use mongodb::Database;
 
 use crate::authorization::is_user_authorized_for;
 use crate::errors::ErrorKind;
-use crate::jwt_models::JwtClaims;
+use crate::jwt_models::{JwtClaims, JwtType};
 use crate::user::get_by_id;
 use crate::user_models::User;
 use crate::Config;
@@ -28,12 +28,12 @@ impl Display for AuthorizationHeader {
 /// - Has not been tampered with.
 /// - Still recent enough.
 #[derive(Debug)]
-pub struct JwtToken {
+pub struct AccessToken {
     pub jwt_claims: JwtClaims,
     pub user: User,
 }
 
-impl Display for JwtToken {
+impl Display for AccessToken {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         f.debug_struct("JwtToken")
             .field("claims", &self.jwt_claims)
@@ -43,16 +43,37 @@ impl Display for JwtToken {
     }
 }
 
-/// If the user needs otp validation, the token is validated.
+/// The token is valid:
+/// - Has not been tampered with.
+/// - Still recent enough.
 #[derive(Debug)]
-pub struct OtpValidatedJwtToken {
+pub struct RefreshToken {
     pub jwt_claims: JwtClaims,
     pub user: User,
 }
 
-impl Display for OtpValidatedJwtToken {
+impl Display for RefreshToken {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-        f.debug_struct("OtpValidatedJwtToken")
+        f.debug_struct("RefreshToken")
+            .field("claims", &self.jwt_claims)
+            .field("user.email_address", &self.user.email_address)
+            .field("user.user_id", &self.user.user_id)
+            .finish()
+    }
+}
+
+/// The token is valid:
+/// - Has not been tampered with.
+/// - Still recent enough.
+#[derive(Debug)]
+pub struct OneShotToken {
+    pub jwt_claims: JwtClaims,
+    pub user: User,
+}
+
+impl Display for OneShotToken {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        f.debug_struct("OneShotToken")
             .field("claims", &self.jwt_claims)
             .field("user.email_address", &self.user.email_address)
             .field("user.user_id", &self.user.user_id)
@@ -107,6 +128,8 @@ fn database_from_extension<B>(req: &RequestParts<B>) -> Result<Database, ErrorKi
     }
 }
 
+/// Retrieve the authorization header from the http headers. The header must contain the
+/// phrase BEARER and have some contents.
 #[async_trait]
 impl<B> FromRequest<B> for AuthorizationHeader
 where
@@ -144,8 +167,9 @@ where
 /// - The authorization header is present and syntactically ok.
 /// - The claims are decoded from the bearer token.
 /// - The user exists in the datastore.
+/// - The token is an access token (aka bearer token).
 #[async_trait]
-impl<B> FromRequest<B> for JwtToken
+impl<B> FromRequest<B> for AccessToken
 where
     B: Send,
 {
@@ -163,37 +187,16 @@ where
         ) {
             Ok(token_data) => {
                 let jwt_claims = token_data.claims;
-                match get_by_id(&jwt_claims.user_id, &db).await {
-                    Ok(user) => Ok(JwtToken { user, jwt_claims }),
-                    Err(_) => Err(ErrorKind::TokenInvalid),
+                match jwt_claims.token_type {
+                    JwtType::AccessToken => match get_by_id(&jwt_claims.user_id, &db).await {
+                        Ok(user) => Ok(AccessToken { user, jwt_claims }),
+                        Err(_) => Err(ErrorKind::TokenInvalid),
+                    },
+                    _ => Err(ErrorKind::TokenInvalid),
                 }
             }
             Err(_) => Err(ErrorKind::TokenInvalid),
         }
-    }
-}
-
-/// Request guard that validates that the user has succeeded the otp challenge if necessary.
-/// After this guard:
-/// - The user has succeeded the otp if the user has an otp configured.
-#[async_trait]
-impl<B> FromRequest<B> for OtpValidatedJwtToken
-where
-    B: Send,
-{
-    type Rejection = ErrorKind;
-
-    async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
-        let jwt_token = JwtToken::from_request(req).await?;
-        let user_has_otp_configured = jwt_token.user.otp_hash.is_some();
-        let succeeded_otp_challenge = jwt_token.jwt_claims.otp_is_validated;
-        if user_has_otp_configured && !succeeded_otp_challenge {
-            return Err(ErrorKind::NotAuthorized);
-        }
-        Ok(OtpValidatedJwtToken {
-            jwt_claims: jwt_token.jwt_claims,
-            user: jwt_token.user,
-        })
     }
 }
 
@@ -206,7 +209,7 @@ where
     type Rejection = ErrorKind;
 
     async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
-        let jwt_token = OtpValidatedJwtToken::from_request(req).await?;
+        let jwt_token = AccessToken::from_request(req).await?;
         let db = database_from_extension(req).unwrap();
         let config = config_from_extension(req).unwrap();
 

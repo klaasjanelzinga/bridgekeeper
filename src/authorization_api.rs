@@ -9,7 +9,7 @@ use crate::authorization_models::{
     IsJwtApiTokenValidRequest,
 };
 use crate::errors::ErrorKind;
-use crate::request_guards::{AuthorizedUser, OtpValidatedJwtToken};
+use crate::request_guards::{AccessToken, AuthorizedUser};
 use crate::Config;
 
 pub async fn add_authorization(
@@ -25,7 +25,7 @@ pub async fn add_authorization(
 pub async fn is_authorized(
     Json(is_authorized_request): Json<IsAuthorizedRequest>,
     Extension(db): Extension<Database>,
-    valid_jwt_token: OtpValidatedJwtToken,
+    valid_jwt_token: AccessToken,
 ) -> Result<Json<IsAuthorizedResponse>, ErrorKind> {
     trace!(
         "is_authorized({}, _, {})",

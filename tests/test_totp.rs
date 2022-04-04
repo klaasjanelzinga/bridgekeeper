@@ -102,7 +102,7 @@ async fn test_totp_flow() {
     // validate the otp
     let validated_totp_response = validate_totp(
         &test_fixtures.app,
-        &login_data.access_token,
+        &second_login.token,
         &calculate_totp_value(&registration_response_data.secret),
     )
     .await

@@ -7,7 +7,7 @@ use mongodb::Database;
 use crate::errors::ErrorKind;
 use crate::jwt::{create_api_jwt_token_for_user, delete_jwt_api_token_for_user};
 use crate::jwt_models::{CreateJwtApiRequest, CreateJwtApiResponse};
-use crate::request_guards::{AccessToken, OneShotToken};
+use crate::request_guards::{AccessToken, OneShotToken, RefreshToken};
 use crate::user::{change_password_for_user, create, update};
 use crate::user_models::{
     ChangePasswordRequest, ChangePasswordResponse, CreateUserRequest, EmptyOkResponse,
@@ -21,11 +21,21 @@ use crate::user_totp_models::{
 };
 use crate::Config;
 
+/// Gets user details.
+///
+/// Authorization: Access Token.
+///
+/// Resources: None.
 pub async fn get_user(valid_jwt_token: AccessToken) -> Result<Json<GetUserResponse>, ErrorKind> {
     trace!("get_user({})", valid_jwt_token);
     Ok(Json(GetUserResponse::from(&valid_jwt_token.user)))
 }
 
+/// Update the user.
+///
+/// Authorization: Access Token.
+///
+/// Resources: Database, Config.
 pub async fn update_user(
     Json(update_request): Json<UpdateUserRequest>,
     Extension(db): Extension<Database>,
@@ -36,6 +46,11 @@ pub async fn update_user(
     Ok(Json(update_response))
 }
 
+/// Creates a user.
+///
+/// Authorization: None.
+///
+/// Resources: Database.
 pub async fn create_user(
     Json(create_request): Json<CreateUserRequest>,
     Extension(db): Extension<Database>,
@@ -67,6 +82,22 @@ pub async fn login(
 ) -> Result<Json<LoginResponse>, ErrorKind> {
     trace!("login_request({}, _)", login_request.email_address);
     let response = crate::user::login(&login_request, &config.clone(), &db).await?;
+    Ok(Json(response))
+}
+
+/// Refresh the tokens for a user..
+///
+/// Authorization: Refresh Token.
+///
+/// Resources: Database, Config.
+pub async fn refresh_token(
+    Extension(db): Extension<Database>,
+    Extension(config): Extension<Config<'_>>,
+    valid_jwt_token: RefreshToken,
+) -> Result<Json<LoginWithOtpResponse>, ErrorKind> {
+    trace!("refresh_token()");
+    let response =
+        crate::user::refresh_token_for_user(&valid_jwt_token.user, &config.clone(), &db).await?;
     Ok(Json(response))
 }
 

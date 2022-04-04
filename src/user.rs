@@ -4,10 +4,10 @@ use mongodb::{Collection, Database};
 
 use crate::errors::ErrorKind;
 use crate::errors::ErrorKind::EntityNotFound;
-use crate::jwt::{create_access_token, create_one_shot_token};
+use crate::jwt::{create_access_token, create_one_shot_token, create_refresh_token};
 use crate::user_models::{
     ChangePasswordRequest, ChangePasswordResponse, CreateUserRequest, GetUserResponse,
-    LoginRequest, LoginResponse, UpdateUserRequest, User,
+    LoginRequest, LoginResponse, LoginWithOtpResponse, UpdateUserRequest, User,
 };
 use crate::util::{create_id, random_string};
 
@@ -153,6 +153,23 @@ pub async fn login(
             })
         }
     }
+}
+
+pub async fn refresh_token_for_user(
+    user: &User,
+    config: &Config<'_>,
+    db: &Database,
+) -> Result<LoginWithOtpResponse, ErrorKind> {
+    let refresh_token = create_refresh_token(user, &config.encoding_key)?;
+    let access_token = create_access_token(user, &config.encoding_key)?;
+
+    let mut db_user = user.clone();
+    db_user.refresh_token_id = Some(refresh_token.token_id);
+    update_user(&db_user, db).await?;
+    Ok(LoginWithOtpResponse {
+        access_token: access_token.token,
+        refresh_token: refresh_token.token,
+    })
 }
 
 /// Create a new user.

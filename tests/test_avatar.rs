@@ -8,7 +8,10 @@ use fake::Fake;
 use bridgekeeper_api::avatar_models::UpdateAvatarRequest;
 
 use crate::common::api_calls::{create_or_update_avatar, delete_avatar, get_avatar};
-use crate::common::fixtures::create_and_login_user;
+use crate::common::fixtures::{
+    create_and_login_user, create_and_login_user_with_totp,
+    create_and_login_user_with_totp_not_totp_verified,
+};
 
 mod common;
 
@@ -80,4 +83,141 @@ async fn test_get_avatar_and_create() {
     assert_eq!(response.err().unwrap(), StatusCode::NOT_FOUND);
 
     ()
+}
+
+/// Test the authentication for the avatar calls.
+/// - Access token should work.
+/// - Oneshot and refresh tokens should not work.
+#[tokio::test]
+async fn test_create_avatar_authentication() {
+    let test_fixtures = common::setup().await;
+    common::empty_users_collection(&test_fixtures.db).await;
+
+    let regular_user = create_and_login_user(&test_fixtures.app).await;
+    let totp_user = create_and_login_user_with_totp(&test_fixtures.app).await;
+    let totp_user_without_totp_validation =
+        create_and_login_user_with_totp_not_totp_verified(&test_fixtures.app).await;
+
+    let paragraph: Vec<String> = Paragraphs(1..2).fake();
+    let update_avatar_request = UpdateAvatarRequest {
+        image_base64: base64::encode(paragraph.first().unwrap()),
+    };
+    assert!(create_or_update_avatar(
+        &test_fixtures.app,
+        &regular_user.access_token,
+        &update_avatar_request,
+    )
+    .await
+    .is_ok());
+    assert!(create_or_update_avatar(
+        &test_fixtures.app,
+        &totp_user.access_token,
+        &update_avatar_request,
+    )
+    .await
+    .is_ok());
+
+    // refresh and one_shot should not work
+    assert!(create_or_update_avatar(
+        &test_fixtures.app,
+        &totp_user.refresh_token.unwrap(),
+        &update_avatar_request,
+    )
+    .await
+    .is_err());
+    assert!(create_or_update_avatar(
+        &test_fixtures.app,
+        &totp_user_without_totp_validation.access_token,
+        &update_avatar_request,
+    )
+    .await
+    .is_err());
+}
+
+/// Test the authentication for the get_avatar function.
+#[tokio::test]
+async fn test_get_avatar_authentication() {
+    let test_fixtures = common::setup().await;
+    common::empty_users_collection(&test_fixtures.db).await;
+
+    let regular_user = create_and_login_user(&test_fixtures.app).await;
+    let totp_user = create_and_login_user_with_totp(&test_fixtures.app).await;
+    let totp_user_without_totp_validation =
+        create_and_login_user_with_totp_not_totp_verified(&test_fixtures.app).await;
+
+    assert_eq!(
+        get_avatar(&test_fixtures.app, &regular_user.access_token)
+            .await
+            .err()
+            .unwrap(),
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        get_avatar(&test_fixtures.app, &totp_user.access_token)
+            .await
+            .err()
+            .unwrap(),
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        get_avatar(&test_fixtures.app, &totp_user.refresh_token.unwrap())
+            .await
+            .err()
+            .unwrap(),
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        get_avatar(
+            &test_fixtures.app,
+            &totp_user_without_totp_validation.access_token
+        )
+        .await
+        .err()
+        .unwrap(),
+        StatusCode::UNAUTHORIZED
+    );
+}
+
+/// Test authentication on the delete avatar function.
+#[tokio::test]
+async fn test_delete_avatar_authentication() {
+    let test_fixtures = common::setup().await;
+    common::empty_users_collection(&test_fixtures.db).await;
+
+    let regular_user = create_and_login_user(&test_fixtures.app).await;
+    let totp_user = create_and_login_user_with_totp(&test_fixtures.app).await;
+    let totp_user_without_totp_validation =
+        create_and_login_user_with_totp_not_totp_verified(&test_fixtures.app).await;
+
+    assert_eq!(
+        delete_avatar(&test_fixtures.app, &regular_user.access_token)
+            .await
+            .err()
+            .unwrap(),
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        delete_avatar(&test_fixtures.app, &totp_user.access_token)
+            .await
+            .err()
+            .unwrap(),
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        delete_avatar(&test_fixtures.app, &totp_user.refresh_token.unwrap())
+            .await
+            .err()
+            .unwrap(),
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        delete_avatar(
+            &test_fixtures.app,
+            &totp_user_without_totp_validation.access_token
+        )
+        .await
+        .err()
+        .unwrap(),
+        StatusCode::UNAUTHORIZED
+    );
 }

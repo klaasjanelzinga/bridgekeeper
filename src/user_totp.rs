@@ -134,6 +134,7 @@ pub async fn validate_totp_for_user(
     let refresh_token = jwt::create_refresh_token(user, &config.encoding_key)?;
 
     db_user.refresh_token_id = Some(refresh_token.token_id);
+    db_user.access_token_id = Some(access_token.token_id);
     user::update_user(&db_user, db).await?;
 
     Ok(LoginWithOtpResponse {

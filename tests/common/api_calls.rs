@@ -161,6 +161,31 @@ pub async fn get_user(router: &Router, token: &str) -> Result<GetUserResponse, S
     Err(response.status())
 }
 
+/// Get user by the user_id.
+#[allow(dead_code)]
+pub async fn refresh_token(
+    router: &Router,
+    token: &str,
+) -> Result<LoginWithOtpResponse, StatusCode> {
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/user/refresh-token")
+                .header(http::header::AUTHORIZATION, format!("Bearer {}", token))
+                .method(http::Method::POST)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    if response.status() == StatusCode::OK {
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        return Ok(serde_json::from_slice(&body).unwrap());
+    }
+    Err(response.status())
+}
+
 /// start the totp registration
 #[allow(dead_code)]
 pub async fn start_totp(

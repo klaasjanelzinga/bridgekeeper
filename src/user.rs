@@ -5,6 +5,7 @@ use mongodb::{Collection, Database};
 use crate::errors::ErrorKind;
 use crate::errors::ErrorKind::EntityNotFound;
 use crate::jwt::{create_access_token, create_one_shot_token, create_refresh_token};
+use crate::jwt_models::{JwtClaims, JwtType};
 use crate::user_models::{
     ChangePasswordRequest, ChangePasswordResponse, CreateUserRequest, GetUserResponse,
     LoginRequest, LoginResponse, LoginWithOtpResponse, UpdateUserRequest, User,
@@ -147,6 +148,10 @@ pub async fn login(
                 create_access_token(&user, &config.encoding_key)
             }?;
 
+            let mut db_user = get_by_id(&user.user_id, db).await?;
+            db_user.access_token_id = Some(token.token_id);
+            update_user(&db_user, db).await?;
+
             Ok(LoginResponse {
                 needs_otp: otp_is_configured,
                 token: token.token,
@@ -155,6 +160,87 @@ pub async fn login(
     }
 }
 
+/// Validates the claims in the jwt for an access token.
+///
+/// - The user in the token must exist.
+/// - The token must be of the type JwtType::AccessToken
+/// - The id of the token must match the current user.access_token_id.
+pub async fn validate_jwt_claim_for_access_token(
+    jwt_claims: &JwtClaims,
+    db: &Database,
+) -> Result<User, ErrorKind> {
+    let user = get_by_id(&jwt_claims.user_id, db).await?;
+
+    match jwt_claims.token_type {
+        JwtType::AccessToken => match user.clone().access_token_id {
+            Some(access_token_id) => {
+                if access_token_id == jwt_claims.token_id {
+                    Ok(user)
+                } else {
+                    clear_session_for_user(&user, db).await?;
+                    Err(ErrorKind::TokenUsedInReplay)
+                }
+            }
+            _ => {
+                clear_session_for_user(&user, db).await?;
+                Err(ErrorKind::TokenNotFound)
+            }
+        },
+        _ => {
+            clear_session_for_user(&user, db).await?;
+            Err(ErrorKind::TokenTypeInvalid)
+        }
+    }
+}
+
+/// Validates the claims in the jwt for a refresh token.
+///
+/// - The user in the token must exist.
+/// - The token type must be a JwtType::RefreshToken.
+/// - The id of the token must match the current user.refresh_token_id.
+pub async fn validate_jwt_claim_for_refresh_token(
+    jwt_claims: &JwtClaims,
+    db: &Database,
+) -> Result<User, ErrorKind> {
+    let user = get_by_id(&jwt_claims.user_id, db).await?;
+
+    match jwt_claims.token_type {
+        JwtType::RefreshToken => match user.clone().refresh_token_id {
+            Some(refresh_token_id) => {
+                if refresh_token_id == jwt_claims.token_id {
+                    Ok(user)
+                } else {
+                    clear_session_for_user(&user, db).await?;
+                    Err(ErrorKind::TokenUsedInReplay)
+                }
+            }
+            _ => {
+                clear_session_for_user(&user, db).await?;
+                Err(ErrorKind::TokenNotFound)
+            }
+        },
+        _ => {
+            clear_session_for_user(&user, db).await?;
+            Err(ErrorKind::TokenTypeInvalid)
+        }
+    }
+}
+
+/// Clears the registered tokens for the user.
+pub async fn clear_session_for_user(user: &User, db: &Database) -> Result<bool, ErrorKind> {
+    let mut db_user = user.clone();
+    db_user.refresh_token_id = None;
+    db_user.access_token_id = None;
+    update_user(&db_user, db).await?;
+    Ok(true)
+}
+
+/// Registers a new refresh token for the user. The id of the refresh token is saved with the user.
+///
+/// ## Args:
+/// - user: The user to create a refresh jwt token for.
+/// - config: The configuration of the application.
+/// - db: The mongo db instance.
 pub async fn refresh_token_for_user(
     user: &User,
     config: &Config<'_>,
@@ -165,6 +251,7 @@ pub async fn refresh_token_for_user(
 
     let mut db_user = user.clone();
     db_user.refresh_token_id = Some(refresh_token.token_id);
+    db_user.access_token_id = Some(access_token.token_id);
     update_user(&db_user, db).await?;
     Ok(LoginWithOtpResponse {
         access_token: access_token.token,
@@ -216,6 +303,7 @@ pub async fn create(
         pending_otp_hash: None,
         pending_backup_codes: vec![],
         refresh_token_id: None,
+        access_token_id: None,
         is_approved: false,
         user_jwt_api_token: vec![],
     };

@@ -12,6 +12,9 @@ pub enum ErrorKind {
     CannotCreateJwtToken,
     PasswordIncorrect,
     TokenInvalid,
+    TokenNotFound,
+    TokenTypeInvalid,
+    TokenUsedInReplay,
     RequiredHeadersNotFound,
     AuthorizationHeaderNotFound,
     AuthorizationHeaderNotValid,
@@ -53,8 +56,18 @@ impl IntoResponse for ErrorKind {
             ErrorKind::AuthorizationHeaderNotFound => (StatusCode::UNAUTHORIZED, "".to_string()),
             ErrorKind::AuthorizationHeaderNotValid => (StatusCode::UNAUTHORIZED, "".to_string()),
             ErrorKind::TokenInvalid => (StatusCode::UNAUTHORIZED, "".to_string()),
+            ErrorKind::TokenNotFound => (StatusCode::UNAUTHORIZED, "".to_string()),
 
             ErrorKind::ApplicationError { message } => (StatusCode::SERVICE_UNAVAILABLE, message),
+
+            ErrorKind::TokenTypeInvalid => {
+                warn!("Invalid token used on resource. Session invalidated.");
+                (StatusCode::UNAUTHORIZED, "".to_string())
+            }
+            ErrorKind::TokenUsedInReplay => {
+                warn!("Token used in a replay attack. Session invalidated.");
+                (StatusCode::UNAUTHORIZED, "".to_string())
+            }
 
             ErrorKind::PasswordInvalid { message } => {
                 info!("PasswordInvalid: {}", message);
@@ -109,6 +122,9 @@ impl Display for ErrorKind {
             ErrorKind::OtpAuthorizationRequired => write!(f, "OtpAuthorizationRequired"),
             ErrorKind::CannotCreateJwtToken => write!(f, "CannotCreateJwtToken"),
             ErrorKind::TokenInvalid => write!(f, "TokenInvalid"),
+            ErrorKind::TokenTypeInvalid => write!(f, "TokenTypeInvalid"),
+            ErrorKind::TokenNotFound => write!(f, "TokenNotFound"),
+            ErrorKind::TokenUsedInReplay => write!(f, "TokenUsedInReplay"),
             ErrorKind::NotImplemented => write!(f, "NotImplemented"),
         }
     }

@@ -239,6 +239,9 @@ async fn test_change_password() {
     );
 
     // Test several invalid passwords
+    let login_data = login(&test_fixtures.app, &login_data.email_address, &new_password)
+        .await
+        .unwrap();
     let invalid_passwords = [
         "eE$2123",         // not long enough
         "k1ekjekjekje",    // no uppers
@@ -250,7 +253,7 @@ async fn test_change_password() {
     for invalid_password in invalid_passwords {
         let change_password_response_result = change_password(
             &test_fixtures.app,
-            &login_data.access_token,
+            &login_data.token,
             &new_password,
             invalid_password,
         )

@@ -314,5 +314,5 @@ async fn test_validity_token_with_missing_user() {
         .await
         .err()
         .unwrap();
-    assert_eq!(err, StatusCode::UNAUTHORIZED);
+    assert_eq!(err, StatusCode::NOT_FOUND);
 }

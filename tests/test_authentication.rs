@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate log;
 
-use crate::common::api_calls::get_user;
+use crate::common::api_calls::{get_user, refresh_token};
 use axum::http;
 
 use crate::common::fixtures::{
@@ -113,6 +113,85 @@ async fn test_token_types() {
         .err(),
         Some(StatusCode::UNAUTHORIZED)
     );
+}
 
-    ()
+/// Test the refresh token functionality.
+/// - A user with a refresh token (totp authenticated).
+/// - The token is refreshed.
+/// - The new access token should work.
+/// - Accessing the refresh token resource with an access token should fail.
+/// - Accessing the refresh token resource with an one-shot token should fail.
+#[tokio::test]
+async fn test_refresh_token() {
+    let test_fixtures = common::setup().await;
+    common::empty_users_collection(&test_fixtures.db).await;
+
+    let totp_user = create_and_login_user_with_totp(&test_fixtures.app).await;
+    let totp_user_without_totp_validation =
+        create_and_login_user_with_totp_not_totp_verified(&test_fixtures.app).await;
+    let result = refresh_token(&test_fixtures.app, &totp_user.refresh_token.unwrap()).await;
+    assert!(result.is_ok());
+    let new_login_tokens = result.unwrap();
+
+    assert!(get_user(&test_fixtures.app, &new_login_tokens.access_token)
+        .await
+        .is_ok());
+
+    assert_eq!(
+        refresh_token(&test_fixtures.app, &totp_user.access_token)
+            .await
+            .err()
+            .unwrap(),
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        refresh_token(&test_fixtures.app, &new_login_tokens.access_token)
+            .await
+            .err()
+            .unwrap(),
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        refresh_token(
+            &test_fixtures.app,
+            &totp_user_without_totp_validation.access_token
+        )
+        .await
+        .err()
+        .unwrap(),
+        StatusCode::UNAUTHORIZED
+    );
+}
+
+/// Test the replay guard on refresh tokens.
+/// - Refresh the token using a refresh token.
+/// - Do this again, this should fail.
+/// - The user should have no more access to resources, even with the access token.
+#[tokio::test]
+async fn test_replay_refresh_token() {
+    let test_fixtures = common::setup().await;
+    common::empty_users_collection(&test_fixtures.db).await;
+
+    let totp_user = create_and_login_user_with_totp(&test_fixtures.app).await;
+    let original_refresh_token = &totp_user.refresh_token.unwrap();
+    assert!(refresh_token(&test_fixtures.app, &original_refresh_token)
+        .await
+        .is_ok());
+
+    // replay attack, should fail.
+    assert_eq!(
+        refresh_token(&test_fixtures.app, &original_refresh_token)
+            .await
+            .err()
+            .unwrap(),
+        StatusCode::UNAUTHORIZED
+    );
+
+    assert_eq!(
+        get_user(&test_fixtures.app, &totp_user.access_token)
+            .await
+            .err()
+            .unwrap(),
+        StatusCode::UNAUTHORIZED
+    )
 }

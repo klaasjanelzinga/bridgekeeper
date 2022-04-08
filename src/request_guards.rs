@@ -9,7 +9,9 @@ use mongodb::Database;
 use crate::authorization::is_user_authorized_for;
 use crate::errors::ErrorKind;
 use crate::jwt_models::{JwtClaims, JwtType};
-use crate::user::get_by_id;
+use crate::user::{
+    get_by_id, validate_jwt_claim_for_access_token, validate_jwt_claim_for_refresh_token,
+};
 use crate::user_models::User;
 use crate::Config;
 
@@ -187,13 +189,8 @@ where
         ) {
             Ok(token_data) => {
                 let jwt_claims = token_data.claims;
-                match jwt_claims.token_type {
-                    JwtType::AccessToken => match get_by_id(&jwt_claims.user_id, &db).await {
-                        Ok(user) => Ok(AccessToken { user, jwt_claims }),
-                        Err(_) => Err(ErrorKind::TokenInvalid),
-                    },
-                    _ => Err(ErrorKind::TokenInvalid),
-                }
+                let user = validate_jwt_claim_for_access_token(&jwt_claims, &db).await?;
+                Ok(AccessToken { user, jwt_claims })
             }
             Err(_) => Err(ErrorKind::TokenInvalid),
         }
@@ -263,13 +260,8 @@ where
         ) {
             Ok(token_data) => {
                 let jwt_claims = token_data.claims;
-                match jwt_claims.token_type {
-                    JwtType::RefreshToken => match get_by_id(&jwt_claims.user_id, &db).await {
-                        Ok(user) => Ok(RefreshToken { user, jwt_claims }),
-                        Err(_) => Err(ErrorKind::TokenInvalid),
-                    },
-                    _ => Err(ErrorKind::TokenInvalid),
-                }
+                let user = validate_jwt_claim_for_refresh_token(&jwt_claims, &db).await?;
+                Ok(RefreshToken { user, jwt_claims })
             }
             Err(_) => Err(ErrorKind::TokenInvalid),
         }

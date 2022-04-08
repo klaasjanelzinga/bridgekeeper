@@ -3,7 +3,7 @@ extern crate log;
 extern crate argon2;
 
 use axum::routing::{delete, get, post};
-use axum::{AddExtensionLayer, Router};
+use axum::{Extension, Router};
 use hyper::header::AUTHORIZATION;
 use std::error::Error;
 use std::iter::once;
@@ -78,8 +78,8 @@ pub fn application_routes(db: &Database, config: &Config<'static>) -> Router {
         .layer(
             ServiceBuilder::new()
                 .layer(SetSensitiveRequestHeadersLayer::new(once(AUTHORIZATION)))
-                .layer(AddExtensionLayer::new(db.clone()))
-                .layer(AddExtensionLayer::new(config.clone()))
+                .layer(Extension(db.clone()))
+                .layer(Extension(config.clone()))
                 .layer(TraceLayer::new_for_http()),
         )
 }

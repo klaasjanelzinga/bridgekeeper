@@ -104,29 +104,19 @@ impl Display for AuthorizedUser {
 }
 
 fn config_from_extension<B>(req: &RequestParts<B>) -> Result<Config, ErrorKind> {
-    match req.extensions() {
-        Some(extension) => match extension.get::<Config>() {
-            Some(config) => Ok(config.clone()),
-            None => Err(ErrorKind::ApplicationError {
-                message: "Configuration not found.".to_string(),
-            }),
-        },
+    match req.extensions().get::<Config>() {
+        Some(config) => Ok(config.clone()),
         None => Err(ErrorKind::ApplicationError {
-            message: "No extensions found. Application configuration error.".to_string(),
+            message: "Configuration not found.".to_string(),
         }),
     }
 }
 
 fn database_from_extension<B>(req: &RequestParts<B>) -> Result<Database, ErrorKind> {
-    match req.extensions() {
-        Some(extension) => match extension.get::<Database>() {
-            Some(database) => Ok(database.clone()),
-            None => Err(ErrorKind::ApplicationError {
-                message: "Database not found.".to_string(),
-            }),
-        },
+    match req.extensions().get::<Database>() {
+        Some(database) => Ok(database.clone()),
         None => Err(ErrorKind::ApplicationError {
-            message: "No extensions found. Application configuration error.".to_string(),
+            message: "Database not found.".to_string(),
         }),
     }
 }
@@ -141,11 +131,7 @@ where
     type Rejection = ErrorKind;
 
     async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
-        let headers = if let Some(headers) = req.headers() {
-            headers
-        } else {
-            return Err(ErrorKind::RequiredHeadersNotFound);
-        };
+        let headers = req.headers();
         let authorization_header = if let Some(auth_header) = headers.get(AUTHORIZATION) {
             auth_header
         } else {

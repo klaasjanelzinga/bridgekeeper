@@ -9,9 +9,14 @@ use crate::authorization_models::{
     IsJwtApiTokenValidRequest,
 };
 use crate::errors::ErrorKind;
-use crate::request_guards::{AuthorizedUser, OtpValidatedJwtToken};
+use crate::request_guards::{AccessToken, AuthorizedUser};
 use crate::Config;
 
+/// Add authorization to a user by an admin.
+///
+/// Authorization: Authorized User with Access Token.
+///
+/// Resources: Database.
 pub async fn add_authorization(
     Json(add_authorization_request): Json<AddAuthorizationRequest>,
     Extension(db): Extension<Database>,
@@ -22,10 +27,15 @@ pub async fn add_authorization(
     Ok(Json(authorization))
 }
 
+/// Validate if a user is authorized for a resource.
+///
+/// Authorization: Access Token.
+///
+/// Resources: Database.
 pub async fn is_authorized(
     Json(is_authorized_request): Json<IsAuthorizedRequest>,
     Extension(db): Extension<Database>,
-    valid_jwt_token: OtpValidatedJwtToken,
+    valid_jwt_token: AccessToken,
 ) -> Result<Json<IsAuthorizedResponse>, ErrorKind> {
     trace!(
         "is_authorized({}, _, {})",
@@ -46,6 +56,11 @@ pub async fn is_authorized(
     }))
 }
 
+/// Validate if a jwt api token is valid.
+///
+/// Authorization: None.
+///
+/// Resources: Database, Config.
 pub async fn is_jwt_api_valid(
     Json(is_jwt_api_token_valid_request): Json<IsJwtApiTokenValidRequest>,
     Extension(db): Extension<Database>,

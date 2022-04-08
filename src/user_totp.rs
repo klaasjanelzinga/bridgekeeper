@@ -5,7 +5,7 @@ use totp_lite::{totp, Sha512};
 
 use crate::config::Config;
 use crate::errors::ErrorKind;
-use crate::user_models::{LoginResponse, User};
+use crate::user_models::{LoginWithOtpResponse, User};
 use crate::user_totp_models::{
     ConfirmTotpResponse, StartTotpRegistrationResult, ValidateTotpRequest,
 };
@@ -118,18 +118,27 @@ pub async fn confirm_totp_code_for_user(
 /// - user: The user to confirm the totp for.
 /// - config: The application configuration.
 /// - request: The request containing the confirmation code.
+/// - db: Valid db mongo instance.
 ///
 /// ## Returns:
-/// A new token for the user if the challenge succeeds, or an error otherwise.
-pub fn validate_totp_for_user(
+/// A new token set for the user if the challenge succeeds, or an error otherwise.
+pub async fn validate_totp_for_user(
     user: &User,
     config: &Config<'_>,
     request: &ValidateTotpRequest,
-) -> Result<LoginResponse, ErrorKind> {
+    db: &Database,
+) -> Result<LoginWithOtpResponse, ErrorKind> {
     validate_totp(&user.otp_hash, &request.totp_challenge)?;
-    let token = jwt::create_otp_validated_jwt_token(user, &config.encoding_key)?;
-    Ok(LoginResponse {
-        needs_otp: false,
-        token,
+    let mut db_user = user::get_by_id(&user.user_id, db).await?;
+    let access_token = jwt::create_access_token(user, &config.encoding_key)?;
+    let refresh_token = jwt::create_refresh_token(user, &config.encoding_key)?;
+
+    db_user.refresh_token_id = Some(refresh_token.token_id);
+    db_user.access_token_id = Some(access_token.token_id);
+    user::update_user(&db_user, db).await?;
+
+    Ok(LoginWithOtpResponse {
+        access_token: access_token.token,
+        refresh_token: refresh_token.token,
     })
 }

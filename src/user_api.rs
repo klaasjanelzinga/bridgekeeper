@@ -7,11 +7,11 @@ use mongodb::Database;
 use crate::errors::ErrorKind;
 use crate::jwt::{create_api_jwt_token_for_user, delete_jwt_api_token_for_user};
 use crate::jwt_models::{CreateJwtApiRequest, CreateJwtApiResponse};
-use crate::request_guards::{JwtToken, OtpValidatedJwtToken};
+use crate::request_guards::{AccessToken, OneShotToken, RefreshToken};
 use crate::user::{change_password_for_user, create, update};
 use crate::user_models::{
     ChangePasswordRequest, ChangePasswordResponse, CreateUserRequest, EmptyOkResponse,
-    GetUserResponse, LoginRequest, LoginResponse, UpdateUserRequest,
+    GetUserResponse, LoginRequest, LoginResponse, LoginWithOtpResponse, UpdateUserRequest,
 };
 use crate::user_totp::{
     confirm_totp_code_for_user, start_totp_registration_for_user, validate_totp_for_user,
@@ -21,23 +21,36 @@ use crate::user_totp_models::{
 };
 use crate::Config;
 
-pub async fn get_user(
-    valid_jwt_token: OtpValidatedJwtToken,
-) -> Result<Json<GetUserResponse>, ErrorKind> {
+/// Gets user details.
+///
+/// Authorization: Access Token.
+///
+/// Resources: None.
+pub async fn get_user(valid_jwt_token: AccessToken) -> Result<Json<GetUserResponse>, ErrorKind> {
     trace!("get_user({})", valid_jwt_token);
     Ok(Json(GetUserResponse::from(&valid_jwt_token.user)))
 }
 
+/// Update the user.
+///
+/// Authorization: Access Token.
+///
+/// Resources: Database, Config.
 pub async fn update_user(
     Json(update_request): Json<UpdateUserRequest>,
     Extension(db): Extension<Database>,
-    valid_jwt_token: OtpValidatedJwtToken,
+    valid_jwt_token: AccessToken,
 ) -> Result<Json<GetUserResponse>, ErrorKind> {
     trace!("update_user(_, {}, {})", update_request, valid_jwt_token);
     let update_response = update(&valid_jwt_token.user, &update_request, &db).await?;
     Ok(Json(update_response))
 }
 
+/// Creates a user.
+///
+/// Authorization: None.
+///
+/// Resources: Database.
 pub async fn create_user(
     Json(create_request): Json<CreateUserRequest>,
     Extension(db): Extension<Database>,
@@ -57,6 +70,11 @@ pub async fn create_user(
     }
 }
 
+/// Change password for the user identified by the access token.
+///
+/// Authorization: None.
+///
+/// Resources: Database, Config.
 pub async fn login(
     Json(login_request): Json<LoginRequest>,
     Extension(db): Extension<Database>,
@@ -67,9 +85,30 @@ pub async fn login(
     Ok(Json(response))
 }
 
+/// Refresh the tokens for a user..
+///
+/// Authorization: Refresh Token.
+///
+/// Resources: Database, Config.
+pub async fn refresh_token(
+    Extension(db): Extension<Database>,
+    Extension(config): Extension<Config<'_>>,
+    valid_jwt_token: RefreshToken,
+) -> Result<Json<LoginWithOtpResponse>, ErrorKind> {
+    trace!("refresh_token()");
+    let response =
+        crate::user::refresh_token_for_user(&valid_jwt_token.user, &config.clone(), &db).await?;
+    Ok(Json(response))
+}
+
+/// Change password for the user identified by the access token.
+///
+/// Authorization: Access Token.
+///
+/// Resources: Database.
 pub async fn change_password(
     Json(change_password_request): Json<ChangePasswordRequest>,
-    valid_jwt_token: OtpValidatedJwtToken,
+    valid_jwt_token: AccessToken,
     Extension(db): Extension<Database>,
 ) -> Result<Json<ChangePasswordResponse>, ErrorKind> {
     trace!("change_password(_, {}, _)", valid_jwt_token);
@@ -78,8 +117,13 @@ pub async fn change_password(
     Ok(Json(result))
 }
 
+/// Start the totp registration.
+///
+/// Authorization: Access Token.
+///
+/// Resources: Database.
 pub async fn start_totp_registration(
-    jwt_token: JwtToken,
+    jwt_token: AccessToken,
     Extension(db): Extension<Database>,
 ) -> Result<Json<StartTotpRegistrationResult>, ErrorKind> {
     trace!("start_totp_registration({}, _)", jwt_token);
@@ -87,9 +131,14 @@ pub async fn start_totp_registration(
     Ok(Json(result))
 }
 
+/// Confirm the totp registration with a totp-challenge.
+///
+/// Authorization: Access Token.
+///
+/// Resources: Database.
 pub async fn confirm_totp_registration(
     Json(validate_totp_request): Json<ValidateTotpRequest>,
-    jwt_token: JwtToken,
+    jwt_token: AccessToken,
     Extension(db): Extension<Database>,
 ) -> Result<Json<ConfirmTotpResponse>, ErrorKind> {
     trace!("confirm_totp_registration({}, _)", jwt_token);
@@ -97,20 +146,32 @@ pub async fn confirm_totp_registration(
     Ok(Json(result))
 }
 
+/// Validate a totp challenge.
+///
+/// Authorization: One Shot Token.
+///
+/// Resources: Database, Config.
 pub async fn validate_totp(
     Extension(config): Extension<Config<'_>>,
     validate_totp_request: Json<ValidateTotpRequest>,
-    jwt_token: JwtToken,
-) -> Result<Json<LoginResponse>, ErrorKind> {
+    jwt_token: OneShotToken,
+    Extension(db): Extension<Database>,
+) -> Result<Json<LoginWithOtpResponse>, ErrorKind> {
     trace!("validate_totp({}, _)", jwt_token);
-    let result = validate_totp_for_user(&jwt_token.user, &config, &validate_totp_request)?;
+    let result =
+        validate_totp_for_user(&jwt_token.user, &config, &validate_totp_request, &db).await?;
     Ok(Json(result))
 }
 
+/// Create an api token.
+///
+/// Authorization: Access Token.
+///
+/// Resources: Database, Config.
 pub async fn create_jwt_api_token(
     Extension(config): Extension<Config<'_>>,
     Json(create_jwt_api_token_request): Json<CreateJwtApiRequest>,
-    jwt_token: OtpValidatedJwtToken,
+    jwt_token: AccessToken,
     Extension(db): Extension<Database>,
 ) -> Result<Json<CreateJwtApiResponse>, ErrorKind> {
     trace!("create_jwt_api_token()");
@@ -125,9 +186,14 @@ pub async fn create_jwt_api_token(
     Ok(Json(CreateJwtApiResponse { token }))
 }
 
+/// Delete an api token..
+///
+/// Authorization: Access Token.
+///
+/// Resources: Database.
 pub async fn delete_jwt_api_token(
     Path(public_token_id): Path<String>,
-    jwt_token: OtpValidatedJwtToken,
+    jwt_token: AccessToken,
     Extension(db): Extension<Database>,
 ) -> Result<Json<EmptyOkResponse>, ErrorKind> {
     trace!("delete_jwt_api_token({})", public_token_id);

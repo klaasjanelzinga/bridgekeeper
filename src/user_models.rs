@@ -36,6 +36,8 @@ pub struct User {
 
     pub is_approved: bool,
 
+    pub refresh_token_id: Option<String>,
+    pub access_token_id: Option<String>,
     pub user_jwt_api_token: Vec<UserJwtApiToken>,
 }
 
@@ -122,6 +124,18 @@ pub struct LoginResponse {
 }
 
 impl Display for LoginResponse {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LoginResponse").finish()
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct LoginWithOtpResponse {
+    pub access_token: String,
+    pub refresh_token: String,
+}
+
+impl Display for LoginWithOtpResponse {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("LoginResponse").finish()
     }

@@ -21,7 +21,8 @@ use tower_http::trace::TraceLayer;
 use crate::config::Config;
 use crate::user_api::{
     change_password, confirm_totp_registration, create_jwt_api_token, create_user,
-    delete_jwt_api_token, get_user, login, start_totp_registration, update_user, validate_totp,
+    delete_jwt_api_token, get_user, login, refresh_token, start_totp_registration, update_user,
+    validate_totp,
 };
 
 pub mod authorization;
@@ -62,6 +63,7 @@ pub fn application_routes(db: &Database, config: &Config<'static>) -> Router {
             post(confirm_totp_registration),
         )
         .route("/user/validate-totp", post(validate_totp))
+        .route("/user/refresh-token", post(refresh_token))
         .route("/authorization", post(add_authorization))
         .route("/authorization/user", post(is_authorized))
         .route("/authorization/jwt-api-token", post(is_jwt_api_valid))

@@ -10,7 +10,10 @@ use bridgekeeper_api::jwt_models::{JwtClaims, JwtType};
 use bridgekeeper_api::user_models::UpdateUserRequest;
 
 use crate::common::api_calls::{change_password, create_user, get_user, login, update_user};
-use crate::common::fixtures::{create_and_login_user, create_user_request, fake_password};
+use crate::common::fixtures::{
+    create_and_login_user, create_and_login_user_with_totp,
+    create_and_login_user_with_totp_not_totp_verified, create_user_request, fake_password,
+};
 
 mod common;
 
@@ -36,6 +39,40 @@ async fn test_get_user() {
     assert!(get_user_data.user_id.len() > 1);
 
     ()
+}
+
+/// Test the get_user authentication.
+#[tokio::test]
+async fn test_get_user_authentication() {
+    let test_fixtures = common::setup().await;
+    common::empty_users_collection(&test_fixtures.db).await;
+
+    let regular_user = create_and_login_user(&test_fixtures.app).await;
+    let totp_user = create_and_login_user_with_totp(&test_fixtures.app).await;
+    let one_shot_token = create_and_login_user_with_totp_not_totp_verified(&test_fixtures.app)
+        .await
+        .access_token;
+
+    assert!(get_user(&test_fixtures.app, &regular_user.access_token)
+        .await
+        .is_ok());
+    assert!(get_user(&test_fixtures.app, &totp_user.access_token)
+        .await
+        .is_ok());
+    assert_eq!(
+        get_user(&test_fixtures.app, &totp_user.refresh_token.unwrap())
+            .await
+            .err()
+            .unwrap(),
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        get_user(&test_fixtures.app, &one_shot_token)
+            .await
+            .err()
+            .unwrap(),
+        StatusCode::UNAUTHORIZED
+    );
 }
 
 /// Test create user:
@@ -132,8 +169,60 @@ async fn test_update_user() {
     assert_eq!(get_user.last_name, update_user_request.last_name);
     assert_eq!(get_user.email_address, update_user_request.email_address);
     assert_eq!(get_user.display_name, update_user_request.display_name);
+}
 
-    ()
+/// Test the update_user authentication.
+#[tokio::test]
+async fn test_update_user_authentication() {
+    let test_fixtures = common::setup().await;
+    common::empty_users_collection(&test_fixtures.db).await;
+
+    let regular_user = create_and_login_user(&test_fixtures.app).await;
+    let totp_user = create_and_login_user_with_totp(&test_fixtures.app).await;
+    let one_shot_token = create_and_login_user_with_totp_not_totp_verified(&test_fixtures.app)
+        .await
+        .access_token;
+
+    let update_user_request = UpdateUserRequest {
+        user_id: regular_user.user_id.clone(),
+        first_name: format!("updated-{}", regular_user.first_name),
+        last_name: format!("updated-{}", regular_user.last_name),
+        email_address: format!("updated-{}", regular_user.email_address),
+        display_name: Some(Name().fake()),
+    };
+
+    assert!(update_user(
+        &test_fixtures.app,
+        &update_user_request,
+        &regular_user.access_token
+    )
+    .await
+    .is_ok());
+    assert!(update_user(
+        &test_fixtures.app,
+        &update_user_request,
+        &totp_user.access_token
+    )
+    .await
+    .is_ok());
+    assert_eq!(
+        update_user(
+            &test_fixtures.app,
+            &update_user_request,
+            &totp_user.refresh_token.unwrap()
+        )
+        .await
+        .err()
+        .unwrap(),
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        update_user(&test_fixtures.app, &update_user_request, &one_shot_token)
+            .await
+            .err()
+            .unwrap(),
+        StatusCode::UNAUTHORIZED
+    );
 }
 
 /// Test login the user:
@@ -223,11 +312,12 @@ async fn test_change_password() {
     // login with the new password -> Ok
     let login_response = login(&test_fixtures.app, &login_data.email_address, &new_password).await;
     assert!(login_response.is_ok());
+    let new_access_token = login_response.unwrap().token;
 
     // Change password with invalid current password.
     let change_password_response_result = change_password(
         &test_fixtures.app,
-        &login_data.access_token,
+        &new_access_token,
         &login_data.password,
         &new_password,
     )
@@ -239,9 +329,6 @@ async fn test_change_password() {
     );
 
     // Test several invalid passwords
-    let login_data = login(&test_fixtures.app, &login_data.email_address, &new_password)
-        .await
-        .unwrap();
     let invalid_passwords = [
         "eE$2123",         // not long enough
         "k1ekjekjekje",    // no uppers
@@ -253,7 +340,7 @@ async fn test_change_password() {
     for invalid_password in invalid_passwords {
         let change_password_response_result = change_password(
             &test_fixtures.app,
-            &login_data.token,
+            &new_access_token,
             &new_password,
             invalid_password,
         )
@@ -268,6 +355,62 @@ async fn test_change_password() {
             StatusCode::BAD_REQUEST
         );
     }
+}
 
-    ()
+/// Test authentication on change_password.
+#[tokio::test]
+async fn test_change_password_authentication() {
+    let test_fixtures = common::setup().await;
+    common::empty_users_collection(&test_fixtures.db).await;
+
+    let regular_user = create_and_login_user(&test_fixtures.app).await;
+    let totp_user = create_and_login_user_with_totp(&test_fixtures.app).await;
+    let one_shot_token =
+        create_and_login_user_with_totp_not_totp_verified(&test_fixtures.app).await;
+
+    let new_password = fake_password();
+
+    assert!(change_password(
+        &test_fixtures.app,
+        &regular_user.access_token,
+        &regular_user.password,
+        &new_password,
+    )
+    .await
+    .is_ok());
+
+    assert!(change_password(
+        &test_fixtures.app,
+        &totp_user.access_token,
+        &totp_user.password,
+        &new_password,
+    )
+    .await
+    .is_ok());
+
+    assert_eq!(
+        change_password(
+            &test_fixtures.app,
+            &totp_user.refresh_token.unwrap(),
+            &one_shot_token.password,
+            &new_password,
+        )
+        .await
+        .err()
+        .unwrap(),
+        StatusCode::UNAUTHORIZED
+    );
+
+    assert_eq!(
+        change_password(
+            &test_fixtures.app,
+            &one_shot_token.access_token,
+            &one_shot_token.password,
+            &new_password,
+        )
+        .await
+        .err()
+        .unwrap(),
+        StatusCode::UNAUTHORIZED
+    );
 }

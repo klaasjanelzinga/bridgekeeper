@@ -95,8 +95,9 @@ async fn test_create_avatar_authentication() {
 
     let regular_user = create_and_login_user(&test_fixtures.app).await;
     let totp_user = create_and_login_user_with_totp(&test_fixtures.app).await;
-    let totp_user_without_totp_validation =
-        create_and_login_user_with_totp_not_totp_verified(&test_fixtures.app).await;
+    let one_shot_token = create_and_login_user_with_totp_not_totp_verified(&test_fixtures.app)
+        .await
+        .access_token;
 
     let paragraph: Vec<String> = Paragraphs(1..2).fake();
     let update_avatar_request = UpdateAvatarRequest {
@@ -125,13 +126,11 @@ async fn test_create_avatar_authentication() {
     )
     .await
     .is_err());
-    assert!(create_or_update_avatar(
-        &test_fixtures.app,
-        &totp_user_without_totp_validation.access_token,
-        &update_avatar_request,
-    )
-    .await
-    .is_err());
+    assert!(
+        create_or_update_avatar(&test_fixtures.app, &one_shot_token, &update_avatar_request,)
+            .await
+            .is_err()
+    );
 }
 
 /// Test the authentication for the get_avatar function.
@@ -142,8 +141,9 @@ async fn test_get_avatar_authentication() {
 
     let regular_user = create_and_login_user(&test_fixtures.app).await;
     let totp_user = create_and_login_user_with_totp(&test_fixtures.app).await;
-    let totp_user_without_totp_validation =
-        create_and_login_user_with_totp_not_totp_verified(&test_fixtures.app).await;
+    let one_shot_token = create_and_login_user_with_totp_not_totp_verified(&test_fixtures.app)
+        .await
+        .access_token;
 
     assert_eq!(
         get_avatar(&test_fixtures.app, &regular_user.access_token)
@@ -167,13 +167,10 @@ async fn test_get_avatar_authentication() {
         StatusCode::UNAUTHORIZED
     );
     assert_eq!(
-        get_avatar(
-            &test_fixtures.app,
-            &totp_user_without_totp_validation.access_token
-        )
-        .await
-        .err()
-        .unwrap(),
+        get_avatar(&test_fixtures.app, &one_shot_token)
+            .await
+            .err()
+            .unwrap(),
         StatusCode::UNAUTHORIZED
     );
 }
@@ -186,8 +183,9 @@ async fn test_delete_avatar_authentication() {
 
     let regular_user = create_and_login_user(&test_fixtures.app).await;
     let totp_user = create_and_login_user_with_totp(&test_fixtures.app).await;
-    let totp_user_without_totp_validation =
-        create_and_login_user_with_totp_not_totp_verified(&test_fixtures.app).await;
+    let one_shot_token = create_and_login_user_with_totp_not_totp_verified(&test_fixtures.app)
+        .await
+        .access_token;
 
     assert_eq!(
         delete_avatar(&test_fixtures.app, &regular_user.access_token)
@@ -211,13 +209,10 @@ async fn test_delete_avatar_authentication() {
         StatusCode::UNAUTHORIZED
     );
     assert_eq!(
-        delete_avatar(
-            &test_fixtures.app,
-            &totp_user_without_totp_validation.access_token
-        )
-        .await
-        .err()
-        .unwrap(),
+        delete_avatar(&test_fixtures.app, &one_shot_token)
+            .await
+            .err()
+            .unwrap(),
         StatusCode::UNAUTHORIZED
     );
 }

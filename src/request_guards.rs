@@ -8,9 +8,10 @@ use mongodb::Database;
 
 use crate::authorization::is_user_authorized_for;
 use crate::errors::ErrorKind;
-use crate::jwt_models::{JwtClaims, JwtType};
+use crate::jwt_models::JwtClaims;
 use crate::user::{
-    get_by_id, validate_jwt_claim_for_access_token, validate_jwt_claim_for_refresh_token,
+    validate_jwt_claim_for_access_token, validate_jwt_claim_for_one_shot_token,
+    validate_jwt_claim_for_refresh_token,
 };
 use crate::user_models::User;
 use crate::Config;
@@ -222,13 +223,8 @@ where
         ) {
             Ok(token_data) => {
                 let jwt_claims = token_data.claims;
-                match jwt_claims.token_type {
-                    JwtType::OneShotToken => match get_by_id(&jwt_claims.user_id, &db).await {
-                        Ok(user) => Ok(OneShotToken { user, jwt_claims }),
-                        Err(_) => Err(ErrorKind::TokenInvalid),
-                    },
-                    _ => Err(ErrorKind::TokenInvalid),
-                }
+                let user = validate_jwt_claim_for_one_shot_token(&jwt_claims, &db).await?;
+                Ok(OneShotToken { user, jwt_claims })
             }
             Err(_) => Err(ErrorKind::TokenInvalid),
         }

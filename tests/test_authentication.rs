@@ -1,11 +1,11 @@
 #[macro_use]
 extern crate log;
 
-use crate::common::api_calls::{get_user, refresh_token};
+use crate::common::api_calls::{get_user, refresh_token, validate_totp};
 use axum::http;
 
 use crate::common::fixtures::{
-    create_and_login_user, create_and_login_user_with_totp,
+    calculate_totp_value, create_and_login_user, create_and_login_user_with_totp,
     create_and_login_user_with_totp_not_totp_verified,
 };
 use axum::http::{Request, StatusCode};
@@ -192,6 +192,43 @@ async fn test_replay_refresh_token() {
             .await
             .err()
             .unwrap(),
+        StatusCode::UNAUTHORIZED
+    )
+}
+
+/// Test the replay of a one shot token.
+/// - Have an one shot token, only valid for authenticating the otp.
+/// - Use it somewhere else, this should fail.
+/// - Use it to validate the totp, should fail as well.
+#[tokio::test]
+async fn test_replay_one_shot_token() {
+    let test_fixtures = common::setup().await;
+    common::empty_users_collection(&test_fixtures.db).await;
+
+    let one_shot_token_user =
+        create_and_login_user_with_totp_not_totp_verified(&test_fixtures.app).await;
+    let one_shot_token = &one_shot_token_user.access_token;
+
+    // use the one shot token somewhere else.
+    assert_eq!(
+        get_user(&test_fixtures.app, &one_shot_token)
+            .await
+            .err()
+            .unwrap(),
+        StatusCode::UNAUTHORIZED
+    );
+
+    // use it to verify the otp.
+    let totp_secret = one_shot_token_user.totp_secret.expect("Secret is needed");
+    assert_eq!(
+        validate_totp(
+            &test_fixtures.app,
+            &one_shot_token,
+            &calculate_totp_value(&totp_secret),
+        )
+        .await
+        .err()
+        .unwrap(),
         StatusCode::UNAUTHORIZED
     )
 }

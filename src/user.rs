@@ -3,7 +3,7 @@ use mongodb::bson::doc;
 use mongodb::{Collection, Database};
 
 use crate::errors::ErrorKind;
-use crate::errors::ErrorKind::EntityNotFound;
+use crate::errors::ErrorKind::{EntityNotFound, TokenTypeInvalid};
 use crate::jwt::{create_access_token, create_one_shot_token, create_refresh_token};
 use crate::jwt_models::{JwtClaims, JwtType};
 use crate::user_models::{
@@ -170,25 +170,36 @@ pub async fn validate_jwt_claim_for_access_token(
     db: &Database,
 ) -> Result<User, ErrorKind> {
     let user = get_by_id(&jwt_claims.user_id, db).await?;
-
     match jwt_claims.token_type {
-        JwtType::AccessToken => match user.clone().access_token_id {
-            Some(access_token_id) => {
-                if access_token_id == jwt_claims.token_id {
-                    Ok(user)
-                } else {
-                    clear_session_for_user(&user, db).await?;
-                    Err(ErrorKind::TokenUsedInReplay)
-                }
-            }
-            _ => {
-                clear_session_for_user(&user, db).await?;
-                Err(ErrorKind::TokenNotFound)
-            }
-        },
+        JwtType::AccessToken => {
+            check_user_token_id(&user, user.access_token_id.clone(), jwt_claims, db).await?;
+            Ok(user)
+        }
         _ => {
             clear_session_for_user(&user, db).await?;
-            Err(ErrorKind::TokenTypeInvalid)
+            Err(TokenTypeInvalid)
+        }
+    }
+}
+
+/// Validates the claims in the jwt for an one shot token.
+///
+/// - The user in the token must exist.
+/// - The token must be of the type JwtType::OneShotToken
+/// - The id of the token must match the current user.access_token_id.
+pub async fn validate_jwt_claim_for_one_shot_token(
+    jwt_claims: &JwtClaims,
+    db: &Database,
+) -> Result<User, ErrorKind> {
+    let user = get_by_id(&jwt_claims.user_id, db).await?;
+    match jwt_claims.token_type {
+        JwtType::OneShotToken => {
+            check_user_token_id(&user, user.access_token_id.clone(), jwt_claims, db).await?;
+            Ok(user)
+        }
+        _ => {
+            clear_session_for_user(&user, db).await?;
+            Err(TokenTypeInvalid)
         }
     }
 }
@@ -203,31 +214,44 @@ pub async fn validate_jwt_claim_for_refresh_token(
     db: &Database,
 ) -> Result<User, ErrorKind> {
     let user = get_by_id(&jwt_claims.user_id, db).await?;
-
     match jwt_claims.token_type {
-        JwtType::RefreshToken => match user.clone().refresh_token_id {
-            Some(refresh_token_id) => {
-                if refresh_token_id == jwt_claims.token_id {
-                    Ok(user)
-                } else {
-                    clear_session_for_user(&user, db).await?;
-                    Err(ErrorKind::TokenUsedInReplay)
-                }
-            }
-            _ => {
-                clear_session_for_user(&user, db).await?;
-                Err(ErrorKind::TokenNotFound)
-            }
-        },
+        JwtType::RefreshToken => {
+            check_user_token_id(&user, user.refresh_token_id.clone(), jwt_claims, db).await?;
+            Ok(user)
+        }
         _ => {
             clear_session_for_user(&user, db).await?;
-            Err(ErrorKind::TokenTypeInvalid)
+            Err(TokenTypeInvalid)
+        }
+    }
+}
+
+/// Check if the user_token_id is present and matches the token_id in the jwt_claims. If
+/// they do not match, the session of the user is cleared and an ErrorKind is returned.
+async fn check_user_token_id(
+    user: &User,
+    user_token_id: Option<String>,
+    jwt_claims: &JwtClaims,
+    db: &Database,
+) -> Result<bool, ErrorKind> {
+    match user_token_id {
+        Some(token_id) => {
+            if token_id == jwt_claims.token_id {
+                Ok(true)
+            } else {
+                clear_session_for_user(user, db).await?;
+                Err(ErrorKind::TokenUsedInReplay)
+            }
+        }
+        _ => {
+            clear_session_for_user(user, db).await?;
+            Err(ErrorKind::TokenNotFound)
         }
     }
 }
 
 /// Clears the registered tokens for the user.
-pub async fn clear_session_for_user(user: &User, db: &Database) -> Result<bool, ErrorKind> {
+async fn clear_session_for_user(user: &User, db: &Database) -> Result<bool, ErrorKind> {
     let mut db_user = user.clone();
     db_user.refresh_token_id = None;
     db_user.access_token_id = None;

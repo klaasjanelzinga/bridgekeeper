@@ -90,7 +90,7 @@ async fn test_totp_flow() {
         JwtType::OneShotToken.to_string()
     );
 
-    // Token cannot be used anywhere else since an otp challenge is required.
+    // Token cannot be used anywhere else since an otp challenge is required. Will invalidate the one-shot token.
     let failing_api_call = get_user(&test_fixtures.app, &second_login.token).await;
     assert!(failing_api_call.is_err());
     assert_eq!(failing_api_call.err().unwrap(), StatusCode::UNAUTHORIZED);
@@ -99,6 +99,15 @@ async fn test_totp_flow() {
     assert!(failing_api_call.is_err());
     assert_eq!(failing_api_call.err().unwrap(), StatusCode::UNAUTHORIZED);
 
+    // Redo the login, since the one shot token is invalidated.
+    let second_login = login(
+        &test_fixtures.app,
+        &login_data.email_address,
+        &login_data.password,
+    )
+    .await
+    .unwrap();
+    assert_eq!(second_login.needs_otp, true);
     // validate the otp
     let validated_totp_response = validate_totp(
         &test_fixtures.app,

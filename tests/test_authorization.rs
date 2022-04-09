@@ -23,7 +23,7 @@ async fn test_authorization() {
     let test_fixtures = common::setup().await;
     common::empty_users_collection(&test_fixtures.db).await;
 
-    let regular_user = create_and_login_user(&test_fixtures.app).await;
+    let regular_user = create_and_login_user(&test_fixtures.app, &test_fixtures.db).await;
     let admin_user = create_and_login_admin_user(&test_fixtures.app, &test_fixtures.db).await;
 
     // add authorization through api for regular user. Can only:
@@ -147,7 +147,7 @@ async fn test_add_authorization() {
     let test_fixtures = common::setup().await;
     common::empty_users_collection(&test_fixtures.db).await;
 
-    let regular_user = create_and_login_user(&test_fixtures.app).await;
+    let regular_user = create_and_login_user(&test_fixtures.app, &test_fixtures.db).await;
     let admin_user = create_and_login_admin_user(&test_fixtures.app, &test_fixtures.db).await;
 
     // regular user cannot give privileges
@@ -192,7 +192,7 @@ async fn test_jwt_api_token_regular_flow() {
     let test_fixtures = common::setup().await;
     common::empty_users_collection(&test_fixtures.db).await;
 
-    let regular_user = create_and_login_user(&test_fixtures.app).await;
+    let regular_user = create_and_login_user(&test_fixtures.app, &test_fixtures.db).await;
 
     let result = create_jwt_api(&test_fixtures.app, &regular_user.access_token, "api")
         .await
@@ -225,7 +225,7 @@ async fn test_multiple_jwt_api_token_regular_flow() {
     let test_fixtures = common::setup().await;
     common::empty_users_collection(&test_fixtures.db).await;
 
-    let regular_user = create_and_login_user(&test_fixtures.app).await;
+    let regular_user = create_and_login_user(&test_fixtures.app, &test_fixtures.db).await;
 
     let result_1 = create_jwt_api(&test_fixtures.app, &regular_user.access_token, "api")
         .await
@@ -286,7 +286,7 @@ async fn test_validity_token_with_missing_user() {
     let test_fixtures = common::setup().await;
     common::empty_users_collection(&test_fixtures.db).await;
 
-    let regular_user = create_and_login_user(&test_fixtures.app).await;
+    let regular_user = create_and_login_user(&test_fixtures.app, &test_fixtures.db).await;
 
     let result_1 = create_jwt_api(&test_fixtures.app, &regular_user.access_token, "api")
         .await

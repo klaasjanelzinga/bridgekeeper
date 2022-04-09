@@ -9,9 +9,11 @@ use jsonwebtoken::{decode, Algorithm, Validation};
 use bridgekeeper_api::jwt_models::{JwtClaims, JwtType};
 use bridgekeeper_api::user_models::UpdateUserRequest;
 
-use crate::common::api_calls::{change_password, create_user, get_user, login, update_user};
+use crate::common::api_calls::{
+    approve_user, change_password, create_user, get_user, login, update_user,
+};
 use crate::common::fixtures::{
-    create_and_login_user, create_and_login_user_with_totp,
+    create_and_login_admin_user, create_and_login_user, create_and_login_user_with_totp,
     create_and_login_user_with_totp_not_totp_verified, create_user_request, fake_password,
 };
 
@@ -26,7 +28,7 @@ async fn test_get_user() {
     let test_fixtures = common::setup().await;
     common::empty_users_collection(&test_fixtures.db).await;
 
-    let login_data = create_and_login_user(&test_fixtures.app).await;
+    let login_data = create_and_login_user(&test_fixtures.app, &test_fixtures.db).await;
 
     let get_user_response = get_user(&test_fixtures.app, &login_data.access_token).await;
     assert!(get_user_response.is_ok());
@@ -47,11 +49,12 @@ async fn test_get_user_authentication() {
     let test_fixtures = common::setup().await;
     common::empty_users_collection(&test_fixtures.db).await;
 
-    let regular_user = create_and_login_user(&test_fixtures.app).await;
-    let totp_user = create_and_login_user_with_totp(&test_fixtures.app).await;
-    let one_shot_token = create_and_login_user_with_totp_not_totp_verified(&test_fixtures.app)
-        .await
-        .access_token;
+    let regular_user = create_and_login_user(&test_fixtures.app, &test_fixtures.db).await;
+    let totp_user = create_and_login_user_with_totp(&test_fixtures.app, &test_fixtures.db).await;
+    let one_shot_token =
+        create_and_login_user_with_totp_not_totp_verified(&test_fixtures.app, &test_fixtures.db)
+            .await
+            .access_token;
 
     assert!(get_user(&test_fixtures.app, &regular_user.access_token)
         .await
@@ -84,6 +87,8 @@ async fn test_create_user() {
     let test_fixtures = common::setup().await;
     common::empty_users_collection(&test_fixtures.db).await;
 
+    let admin_user = create_and_login_admin_user(&test_fixtures.app, &test_fixtures.db).await;
+
     let create_user_request = create_user_request();
     let created_user_response = create_user(&test_fixtures.app, &create_user_request).await;
     assert!(created_user_response.is_ok());
@@ -97,6 +102,15 @@ async fn test_create_user() {
     assert_eq!(create_user_request.last_name, created_user.last_name);
     assert_eq!(create_user_request.display_name, created_user.display_name);
     assert!(created_user.user_id.len() > 1);
+
+    // user admin to approve the user.
+    assert!(approve_user(
+        &test_fixtures.app,
+        &admin_user.access_token,
+        &created_user.user_id,
+    )
+    .await
+    .unwrap());
 
     // login and get user
     let token = login(
@@ -124,6 +138,55 @@ async fn test_create_user() {
     ()
 }
 
+/// Test the approval of users.
+/// - Create a user, the user should not be approved.
+/// - Apptove the user.
+/// - Login should work
+#[tokio::test]
+async fn test_approval_user() {
+    let test_fixtures = common::setup().await;
+    common::empty_users_collection(&test_fixtures.db).await;
+
+    let admin_user = create_and_login_admin_user(&test_fixtures.app, &test_fixtures.db).await;
+
+    // create a user.
+    let create_user_request = create_user_request();
+    let created_user_response = create_user(&test_fixtures.app, &create_user_request)
+        .await
+        .unwrap();
+
+    // The login should fail, since the user is not yet approved.
+    // login and get user
+    assert_eq!(
+        login(
+            &test_fixtures.app,
+            &create_user_request.email_address,
+            &create_user_request.new_password,
+        )
+        .await
+        .err()
+        .unwrap(),
+        StatusCode::UNAUTHORIZED
+    );
+
+    assert!(approve_user(
+        &test_fixtures.app,
+        &admin_user.access_token,
+        &created_user_response.user_id,
+    )
+    .await
+    .unwrap());
+
+    // The login should succeed, since the user is not yet approved.
+    login(
+        &test_fixtures.app,
+        &create_user_request.email_address,
+        &create_user_request.new_password,
+    )
+    .await
+    .unwrap();
+}
+
 /// Test update user:
 /// - Create the user.
 /// - Get the user with the user id.
@@ -135,7 +198,7 @@ async fn test_update_user() {
     let test_fixtures = common::setup().await;
     common::empty_users_collection(&test_fixtures.db).await;
 
-    let login_data = create_and_login_user(&test_fixtures.app).await;
+    let login_data = create_and_login_user(&test_fixtures.app, &test_fixtures.db).await;
 
     let update_user_request = UpdateUserRequest {
         user_id: login_data.user_id.clone(),
@@ -177,11 +240,12 @@ async fn test_update_user_authentication() {
     let test_fixtures = common::setup().await;
     common::empty_users_collection(&test_fixtures.db).await;
 
-    let regular_user = create_and_login_user(&test_fixtures.app).await;
-    let totp_user = create_and_login_user_with_totp(&test_fixtures.app).await;
-    let one_shot_token = create_and_login_user_with_totp_not_totp_verified(&test_fixtures.app)
-        .await
-        .access_token;
+    let regular_user = create_and_login_user(&test_fixtures.app, &test_fixtures.db).await;
+    let totp_user = create_and_login_user_with_totp(&test_fixtures.app, &test_fixtures.db).await;
+    let one_shot_token =
+        create_and_login_user_with_totp_not_totp_verified(&test_fixtures.app, &test_fixtures.db)
+            .await
+            .access_token;
 
     let update_user_request = UpdateUserRequest {
         user_id: regular_user.user_id.clone(),
@@ -235,7 +299,7 @@ async fn test_login_user() {
     let test_fixtures = common::setup().await;
     common::empty_users_collection(&test_fixtures.db).await;
 
-    let login_data = create_and_login_user(&test_fixtures.app).await;
+    let login_data = create_and_login_user(&test_fixtures.app, &test_fixtures.db).await;
 
     let token_message = decode::<JwtClaims>(
         &login_data.access_token,
@@ -283,7 +347,7 @@ async fn test_change_password() {
     let test_fixtures = common::setup().await;
     common::empty_users_collection(&test_fixtures.db).await;
 
-    let login_data = create_and_login_user(&test_fixtures.app).await;
+    let login_data = create_and_login_user(&test_fixtures.app, &test_fixtures.db).await;
     let new_password = fake_password();
 
     let change_password_response_result = change_password(
@@ -363,10 +427,11 @@ async fn test_change_password_authentication() {
     let test_fixtures = common::setup().await;
     common::empty_users_collection(&test_fixtures.db).await;
 
-    let regular_user = create_and_login_user(&test_fixtures.app).await;
-    let totp_user = create_and_login_user_with_totp(&test_fixtures.app).await;
+    let regular_user = create_and_login_user(&test_fixtures.app, &test_fixtures.db).await;
+    let totp_user = create_and_login_user_with_totp(&test_fixtures.app, &test_fixtures.db).await;
     let one_shot_token =
-        create_and_login_user_with_totp_not_totp_verified(&test_fixtures.app).await;
+        create_and_login_user_with_totp_not_totp_verified(&test_fixtures.app, &test_fixtures.db)
+            .await;
 
     let new_password = fake_password();
 

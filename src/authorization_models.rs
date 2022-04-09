@@ -3,6 +3,19 @@ use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Deserialize, Serialize)]
+pub struct ApproveUserRequest {
+    pub approve_user_id: String,
+}
+
+impl Display for ApproveUserRequest {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ApproveUserRequest")
+            .field("approve_user_id", &self.approve_user_id)
+            .finish()
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
 pub struct AddAuthorizationRequest {
     pub for_user_id: String,
     pub application: String,

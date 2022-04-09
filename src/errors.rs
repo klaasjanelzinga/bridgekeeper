@@ -10,6 +10,7 @@ pub enum ErrorKind {
     CannotVerifyPassword,
     CannotEncodePassword,
     CannotCreateJwtToken,
+    UserNotApproved,
     PasswordIncorrect,
     TokenInvalid,
     TokenNotFound,
@@ -60,6 +61,10 @@ impl IntoResponse for ErrorKind {
 
             ErrorKind::ApplicationError { message } => (StatusCode::SERVICE_UNAVAILABLE, message),
 
+            ErrorKind::UserNotApproved => {
+                warn!("User is not yet approved but is used.");
+                (StatusCode::UNAUTHORIZED, "".to_string())
+            }
             ErrorKind::TokenTypeInvalid => {
                 warn!("Invalid token used on resource. Session invalidated.");
                 (StatusCode::UNAUTHORIZED, "".to_string())
@@ -112,6 +117,7 @@ impl Display for ErrorKind {
             ErrorKind::EntityNotFound { message } => write!(f, "EntityNotFound: {}", message),
             ErrorKind::IllegalRequest { message } => write!(f, "IllegalRequest: {}", message),
             ErrorKind::PasswordInvalid { message } => write!(f, "PasswordInvalid: {}", message),
+            ErrorKind::UserNotApproved => write!(f, "UserNotApproved"),
             ErrorKind::MongoDbError { mongodb_error } => {
                 write!(f, "MongoDbError: {}", mongodb_error)
             }

@@ -5,8 +5,8 @@ use serde_json::json;
 use tower::ServiceExt;
 
 use bridgekeeper_api::authorization_models::{
-    AddAuthorizationRequest, Authorization, IsAuthorizedRequest, IsAuthorizedResponse,
-    IsJwtApiTokenValidRequest,
+    AddAuthorizationRequest, ApproveUserRequest, Authorization, IsAuthorizedRequest,
+    IsAuthorizedResponse, IsJwtApiTokenValidRequest,
 };
 use bridgekeeper_api::avatar_models::{
     GetAvatarResponse, UpdateAvatarRequest, UpdateAvatarResponse,
@@ -348,6 +348,33 @@ pub async fn delete_avatar(
                 .header(http::header::AUTHORIZATION, format!("Bearer {}", token))
                 .method(http::Method::DELETE)
                 .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    if response.status() == StatusCode::OK {
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        return Ok(serde_json::from_slice(&body).unwrap());
+    }
+    Err(response.status())
+}
+
+/// Approve the user.
+#[allow(dead_code)]
+pub async fn approve_user(router: &Router, token: &str, user_id: &str) -> Result<bool, StatusCode> {
+    let request = ApproveUserRequest {
+        approve_user_id: user_id.to_string(),
+    };
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/authorization/user/approval")
+                .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+                .header(http::header::AUTHORIZATION, format!("Bearer {}", token))
+                .method(http::Method::POST)
+                .body(Body::from(serde_json::to_string(&json!(request)).unwrap()))
                 .unwrap(),
         )
         .await

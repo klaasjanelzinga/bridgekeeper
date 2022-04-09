@@ -136,6 +136,9 @@ pub async fn login(
     match get_by_email(&login_request.email_address, db).await {
         Err(_) => Err(ErrorKind::NotAuthorized),
         Ok(user) => {
+            if !user.is_approved {
+                return Err(ErrorKind::UserNotApproved);
+            }
             let valid_password = verify_input(&login_request.password, &user.password_hash)?;
             if !valid_password {
                 return Err(ErrorKind::PasswordIncorrect);
@@ -234,6 +237,9 @@ async fn check_user_token_id(
     jwt_claims: &JwtClaims,
     db: &Database,
 ) -> Result<bool, ErrorKind> {
+    if !user.is_approved {
+        return Err(ErrorKind::UserNotApproved);
+    }
     match user_token_id {
         Some(token_id) => {
             if token_id == jwt_claims.token_id {

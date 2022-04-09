@@ -1,7 +1,7 @@
 use futures::TryStreamExt;
 use jsonwebtoken::{decode, Algorithm, Validation};
 
-use crate::authorization_models::{AddAuthorizationRequest, Authorization};
+use crate::authorization_models::{AddAuthorizationRequest, ApproveUserRequest, Authorization};
 use crate::Config;
 use mongodb::bson::doc;
 use mongodb::{Collection, Database};
@@ -9,12 +9,23 @@ use regex::Regex;
 
 use crate::errors::ErrorKind;
 use crate::jwt_models::JwtApiClaims;
-use crate::user::get_by_id;
+use crate::user::{get_by_id, update_user};
 use crate::user_models::User;
 
 /// Creates the authorization collection for the database.
 fn authorization_collection(db: &Database) -> Collection<Authorization> {
     db.collection::<Authorization>("authorization")
+}
+
+pub async fn approve_user_in_request(
+    request: &ApproveUserRequest,
+    db: &Database,
+) -> Result<bool, ErrorKind> {
+    trace!("approve_user_in_request({}, _)", request);
+    let mut user = get_by_id(&request.approve_user_id, db).await?;
+    user.is_approved = true;
+    update_user(&user, db).await?;
+    Ok(true)
 }
 
 pub async fn create(

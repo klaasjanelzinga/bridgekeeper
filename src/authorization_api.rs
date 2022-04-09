@@ -1,12 +1,14 @@
-use crate::authorization::{is_jwt_api_token_valid, is_user_authorized_for};
+use crate::authorization::{
+    approve_user_in_request, is_jwt_api_token_valid, is_user_authorized_for,
+};
 use axum::extract::Extension;
 use axum::Json;
 use mongodb::Database;
 
 use crate::authorization::create;
 use crate::authorization_models::{
-    AddAuthorizationRequest, Authorization, IsAuthorizedRequest, IsAuthorizedResponse,
-    IsJwtApiTokenValidRequest,
+    AddAuthorizationRequest, ApproveUserRequest, Authorization, IsAuthorizedRequest,
+    IsAuthorizedResponse, IsJwtApiTokenValidRequest,
 };
 use crate::errors::ErrorKind;
 use crate::request_guards::{AccessToken, AuthorizedUser};
@@ -25,6 +27,21 @@ pub async fn add_authorization(
     trace!("add_authorization(_, _, {})", authenticated_user);
     let authorization = create(&add_authorization_request, &db).await?;
     Ok(Json(authorization))
+}
+
+/// Approve a user by an admin.
+///
+/// Authorization: Authorized User with Access Token.
+///
+/// Resources: Database.
+pub async fn approve_user(
+    Json(approve_user_request): Json<ApproveUserRequest>,
+    Extension(db): Extension<Database>,
+    authenticated_user: AuthorizedUser,
+) -> Result<Json<bool>, ErrorKind> {
+    trace!("approve_user(_, _, {})", authenticated_user);
+    approve_user_in_request(&approve_user_request, &db).await?;
+    Ok(Json(true))
 }
 
 /// Validate if a user is authorized for a resource.

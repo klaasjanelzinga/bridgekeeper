@@ -28,7 +28,7 @@ async fn test_get_avatar_and_create() {
     let test_fixtures = common::setup().await;
     common::empty_users_collection(&test_fixtures.db).await;
 
-    let login_data = create_and_login_user(&test_fixtures.app).await;
+    let login_data = create_and_login_user(&test_fixtures.app, &test_fixtures.db).await;
 
     // Get while no avatar is available. Should return Not found
     let response = get_avatar(&test_fixtures.app, &login_data.access_token).await;
@@ -93,11 +93,12 @@ async fn test_create_avatar_authentication() {
     let test_fixtures = common::setup().await;
     common::empty_users_collection(&test_fixtures.db).await;
 
-    let regular_user = create_and_login_user(&test_fixtures.app).await;
-    let totp_user = create_and_login_user_with_totp(&test_fixtures.app).await;
-    let one_shot_token = create_and_login_user_with_totp_not_totp_verified(&test_fixtures.app)
-        .await
-        .access_token;
+    let regular_user = create_and_login_user(&test_fixtures.app, &test_fixtures.db).await;
+    let totp_user = create_and_login_user_with_totp(&test_fixtures.app, &test_fixtures.db).await;
+    let one_shot_token =
+        create_and_login_user_with_totp_not_totp_verified(&test_fixtures.app, &test_fixtures.db)
+            .await
+            .access_token;
 
     let paragraph: Vec<String> = Paragraphs(1..2).fake();
     let update_avatar_request = UpdateAvatarRequest {
@@ -139,11 +140,12 @@ async fn test_get_avatar_authentication() {
     let test_fixtures = common::setup().await;
     common::empty_users_collection(&test_fixtures.db).await;
 
-    let regular_user = create_and_login_user(&test_fixtures.app).await;
-    let totp_user = create_and_login_user_with_totp(&test_fixtures.app).await;
-    let one_shot_token = create_and_login_user_with_totp_not_totp_verified(&test_fixtures.app)
-        .await
-        .access_token;
+    let regular_user = create_and_login_user(&test_fixtures.app, &test_fixtures.db).await;
+    let totp_user = create_and_login_user_with_totp(&test_fixtures.app, &test_fixtures.db).await;
+    let one_shot_token =
+        create_and_login_user_with_totp_not_totp_verified(&test_fixtures.app, &test_fixtures.db)
+            .await
+            .access_token;
 
     assert_eq!(
         get_avatar(&test_fixtures.app, &regular_user.access_token)
@@ -181,11 +183,12 @@ async fn test_delete_avatar_authentication() {
     let test_fixtures = common::setup().await;
     common::empty_users_collection(&test_fixtures.db).await;
 
-    let regular_user = create_and_login_user(&test_fixtures.app).await;
-    let totp_user = create_and_login_user_with_totp(&test_fixtures.app).await;
-    let one_shot_token = create_and_login_user_with_totp_not_totp_verified(&test_fixtures.app)
-        .await
-        .access_token;
+    let regular_user = create_and_login_user(&test_fixtures.app, &test_fixtures.db).await;
+    let totp_user = create_and_login_user_with_totp(&test_fixtures.app, &test_fixtures.db).await;
+    let one_shot_token =
+        create_and_login_user_with_totp_not_totp_verified(&test_fixtures.app, &test_fixtures.db)
+            .await
+            .access_token;
 
     assert_eq!(
         delete_avatar(&test_fixtures.app, &regular_user.access_token)

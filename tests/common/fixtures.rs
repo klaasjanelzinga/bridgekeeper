@@ -9,6 +9,7 @@ use totp_lite::{totp, Sha512};
 
 use bridgekeeper_api::authorization::create;
 use bridgekeeper_api::authorization_models::AddAuthorizationRequest;
+use bridgekeeper_api::user::{get_by_id, update_user};
 use bridgekeeper_api::user_models::CreateUserRequest;
 
 use crate::common::api_calls::{confirm_totp, create_user, login, start_totp, validate_totp};
@@ -48,11 +49,17 @@ pub fn calculate_totp_value(secret: &str) -> String {
 }
 
 #[allow(dead_code)]
-pub async fn create_and_login_user(router: &Router) -> CreateAndLoginData {
+pub async fn create_and_login_user(router: &Router, db: &Database) -> CreateAndLoginData {
     let create_user_request = create_user_request();
     let created_user = create_user(router, &create_user_request)
         .await
         .expect("Created user");
+
+    // Approve the user
+    let mut user = get_by_id(&created_user.user_id, db).await.unwrap();
+    user.is_approved = true;
+    update_user(&user, db).await.unwrap();
+
     let login_response = login(
         router,
         &create_user_request.email_address,
@@ -79,7 +86,7 @@ pub async fn create_and_login_user(router: &Router) -> CreateAndLoginData {
 /// Create an admin user. That is a user with full access on application bridgekeeper.
 #[allow(dead_code)]
 pub async fn create_and_login_admin_user(router: &Router, db: &Database) -> CreateAndLoginData {
-    let create_and_login_data = create_and_login_user(router).await;
+    let create_and_login_data = create_and_login_user(router, db).await;
     let authorize_admin_request = AddAuthorizationRequest {
         for_user_id: create_and_login_data.user_id.clone(),
         application: String::from("bridgekeeper"),
@@ -97,8 +104,9 @@ pub async fn create_and_login_admin_user(router: &Router, db: &Database) -> Crea
 #[allow(dead_code)]
 pub async fn create_and_login_user_with_totp_not_totp_verified(
     router: &Router,
+    db: &Database,
 ) -> CreateAndLoginData {
-    let user = create_and_login_user(&router).await;
+    let user = create_and_login_user(&router, db).await;
     let totp_start = start_totp(&router, &user.access_token)
         .await
         .expect("Start of the totp should succeed");
@@ -128,8 +136,8 @@ pub async fn create_and_login_user_with_totp_not_totp_verified(
 
 /// Create an user with a validated totp challenge.
 #[allow(dead_code)]
-pub async fn create_and_login_user_with_totp(router: &Router) -> CreateAndLoginData {
-    let unverified = create_and_login_user_with_totp_not_totp_verified(router).await;
+pub async fn create_and_login_user_with_totp(router: &Router, db: &Database) -> CreateAndLoginData {
+    let unverified = create_and_login_user_with_totp_not_totp_verified(router, db).await;
     let totp_secret = unverified.totp_secret.expect("Secret is needed");
     let validated_totp_response = validate_totp(
         router,

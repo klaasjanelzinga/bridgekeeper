@@ -24,7 +24,7 @@ async fn test_invalid_authentication_header() {
     let test_fixtures = common::setup().await;
     common::empty_users_collection(&test_fixtures.db).await;
 
-    let regular_user = create_and_login_user(&test_fixtures.app).await;
+    let regular_user = create_and_login_user(&test_fixtures.app, &test_fixtures.db).await;
 
     let result = get_user(&test_fixtures.app, &regular_user.access_token).await;
     assert!(result.is_ok());
@@ -82,10 +82,11 @@ async fn test_token_types() {
     let test_fixtures = common::setup().await;
     common::empty_users_collection(&test_fixtures.db).await;
 
-    let regular_user = create_and_login_user(&test_fixtures.app).await;
-    let totp_user = create_and_login_user_with_totp(&test_fixtures.app).await;
+    let regular_user = create_and_login_user(&test_fixtures.app, &test_fixtures.db).await;
+    let totp_user = create_and_login_user_with_totp(&test_fixtures.app, &test_fixtures.db).await;
     let totp_user_without_totp_validation =
-        create_and_login_user_with_totp_not_totp_verified(&test_fixtures.app).await;
+        create_and_login_user_with_totp_not_totp_verified(&test_fixtures.app, &test_fixtures.db)
+            .await;
 
     // bearer token should work on resources that require the access token.
     get_user(&test_fixtures.app, &regular_user.access_token)
@@ -126,9 +127,10 @@ async fn test_refresh_token() {
     let test_fixtures = common::setup().await;
     common::empty_users_collection(&test_fixtures.db).await;
 
-    let totp_user = create_and_login_user_with_totp(&test_fixtures.app).await;
+    let totp_user = create_and_login_user_with_totp(&test_fixtures.app, &test_fixtures.db).await;
     let totp_user_without_totp_validation =
-        create_and_login_user_with_totp_not_totp_verified(&test_fixtures.app).await;
+        create_and_login_user_with_totp_not_totp_verified(&test_fixtures.app, &test_fixtures.db)
+            .await;
     let result = refresh_token(&test_fixtures.app, &totp_user.refresh_token.unwrap()).await;
     assert!(result.is_ok());
     let new_login_tokens = result.unwrap();
@@ -172,7 +174,7 @@ async fn test_replay_refresh_token() {
     let test_fixtures = common::setup().await;
     common::empty_users_collection(&test_fixtures.db).await;
 
-    let totp_user = create_and_login_user_with_totp(&test_fixtures.app).await;
+    let totp_user = create_and_login_user_with_totp(&test_fixtures.app, &test_fixtures.db).await;
     let original_refresh_token = &totp_user.refresh_token.unwrap();
     assert!(refresh_token(&test_fixtures.app, &original_refresh_token)
         .await
@@ -206,7 +208,8 @@ async fn test_replay_one_shot_token() {
     common::empty_users_collection(&test_fixtures.db).await;
 
     let one_shot_token_user =
-        create_and_login_user_with_totp_not_totp_verified(&test_fixtures.app).await;
+        create_and_login_user_with_totp_not_totp_verified(&test_fixtures.app, &test_fixtures.db)
+            .await;
     let one_shot_token = &one_shot_token_user.access_token;
 
     // use the one shot token somewhere else.

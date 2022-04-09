@@ -29,7 +29,7 @@ async fn test_totp_flow() {
     let test_fixtures = common::setup().await;
     common::empty_users_collection(&test_fixtures.db).await;
 
-    let login_data = create_and_login_user(&test_fixtures.app).await;
+    let login_data = create_and_login_user(&test_fixtures.app, &test_fixtures.db).await;
 
     // Validate the jwt claims in the token.
     let token_message = decode::<JwtClaims>(
@@ -155,7 +155,7 @@ async fn test_totp_flow_with_invalid_codes() {
     let test_fixtures = common::setup().await;
     common::empty_users_collection(&test_fixtures.db).await;
 
-    let login_data = create_and_login_user(&test_fixtures.app).await;
+    let login_data = create_and_login_user(&test_fixtures.app, &test_fixtures.db).await;
 
     let registration_response = start_totp(&test_fixtures.app, &login_data.access_token)
         .await

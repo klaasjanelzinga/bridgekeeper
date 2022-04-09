@@ -8,7 +8,7 @@ use hyper::header::AUTHORIZATION;
 use std::error::Error;
 use std::iter::once;
 
-use crate::authorization_api::{add_authorization, is_authorized, is_jwt_api_valid};
+use crate::authorization_api::{add_authorization, approve_user, is_authorized, is_jwt_api_valid};
 use crate::avatar_api::{create_or_update_avatar, delete_avatar, get_avatar};
 use mongodb::options::ClientOptions;
 use mongodb::Client;
@@ -66,6 +66,7 @@ pub fn application_routes(db: &Database, config: &Config<'static>) -> Router {
         .route("/user/refresh-token", post(refresh_token))
         .route("/authorization", post(add_authorization))
         .route("/authorization/user", post(is_authorized))
+        .route("/authorization/user/approval", post(approve_user))
         .route("/authorization/jwt-api-token", post(is_jwt_api_valid))
         .route(
             "/user/jwt-api-token",

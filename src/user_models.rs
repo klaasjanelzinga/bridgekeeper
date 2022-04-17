@@ -57,6 +57,7 @@ pub struct GetUserResponse {
     pub email_address: String,
     pub first_name: String,
     pub last_name: String,
+    pub needs_approval: bool,
     pub display_name: Option<String>,
 }
 
@@ -67,6 +68,7 @@ impl From<&User> for GetUserResponse {
             email_address: user.email_address.clone(),
             first_name: user.first_name.clone(),
             last_name: user.last_name.clone(),
+            needs_approval: !user.is_approved,
             display_name: user.display_name.clone(),
         }
     }

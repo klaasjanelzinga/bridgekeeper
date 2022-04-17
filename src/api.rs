@@ -50,7 +50,7 @@ mod util;
 pub fn application_routes(db: &Database, config: &Config<'static>) -> Router {
     let user_endpoint = config
         .allow_origin
-        .split(",")
+        .split(',')
         .map(|origin| origin.parse().unwrap())
         .collect::<Vec<HeaderValue>>();
 

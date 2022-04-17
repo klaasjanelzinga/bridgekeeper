@@ -101,6 +101,7 @@ async fn test_create_user() {
     assert_eq!(create_user_request.first_name, created_user.first_name);
     assert_eq!(create_user_request.last_name, created_user.last_name);
     assert_eq!(create_user_request.display_name, created_user.display_name);
+    assert!(created_user.needs_approval);
     assert!(created_user.user_id.len() > 1);
 
     // user admin to approve the user.

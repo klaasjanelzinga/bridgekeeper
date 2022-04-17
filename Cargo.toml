@@ -1,6 +1,6 @@
 [package]
 name = "bridgekeeper"
-version = "0.5.0"
+version = "0.6.1"
 edition = "2021"
 
 [lib]
@@ -27,7 +27,7 @@ serde_json = { version = "1.0"}
 hyper = { version = "0.14" }
 axum = { version = "0.5" }
 tower = { version = "0.4" }
-tower-http = { version = "0.2", features = [ "trace", "sensitive-headers" ] }
+tower-http = { version = "0.2", features = [ "trace", "sensitive-headers", "cors" ] }
 mime = { version = "0.3" }
 
 jsonwebtoken = "7.2"

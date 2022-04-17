@@ -29,6 +29,9 @@ pub enum ErrorKind {
     PasswordInvalid {
         message: String,
     },
+    EmailAddressAlreadyTaken {
+        message: String,
+    },
 
     /// Catch all error
     ApplicationError {
@@ -74,6 +77,11 @@ impl IntoResponse for ErrorKind {
                 (StatusCode::UNAUTHORIZED, "".to_string())
             }
 
+            ErrorKind::EmailAddressAlreadyTaken { message } => {
+                info!("EmailAddressAlreadyTaken: {}", message);
+                (StatusCode::BAD_REQUEST, message)
+            }
+
             ErrorKind::PasswordInvalid { message } => {
                 info!("PasswordInvalid: {}", message);
                 (StatusCode::BAD_REQUEST, message)
@@ -117,6 +125,9 @@ impl Display for ErrorKind {
             ErrorKind::EntityNotFound { message } => write!(f, "EntityNotFound: {}", message),
             ErrorKind::IllegalRequest { message } => write!(f, "IllegalRequest: {}", message),
             ErrorKind::PasswordInvalid { message } => write!(f, "PasswordInvalid: {}", message),
+            ErrorKind::EmailAddressAlreadyTaken { message } => {
+                write!(f, "EmailAddressAlreadyTaken: {}", message)
+            }
             ErrorKind::UserNotApproved => write!(f, "UserNotApproved"),
             ErrorKind::MongoDbError { mongodb_error } => {
                 write!(f, "MongoDbError: {}", mongodb_error)

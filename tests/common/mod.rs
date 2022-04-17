@@ -50,6 +50,7 @@ pub async fn setup<'a>() -> TestFixtures<'a> {
     set_env_var_if_not_set("MONGO_PORT", "7011");
     set_env_var_if_not_set("MONGO_DB", "bridgekeeper-test");
     set_env_var_if_not_set("JWT_TOKEN_SECRET", "bridgekeeper-test");
+    set_env_var_if_not_set("ALLOW_ORIGIN", "localhost:3000");
 
     let config = bridgekeeper_api::config::Config::from_environment();
     let db = bridgekeeper_api::create_mongo_connection(&config)

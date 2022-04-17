@@ -13,6 +13,7 @@ pub struct Config<'a> {
     pub encoding_key: EncodingKey,
     pub application_name: String,
     pub bind_to: SocketAddr,
+    pub allow_origin: String,
 }
 
 fn os_var_as_string(var: &str) -> String {
@@ -35,6 +36,7 @@ impl Config<'_> {
         let mongo_user = os_var_as_string("MONGO_USER");
         let mongo_pass = os_var_as_string("MONGO_PASS");
         let jwt_token_secret = os_var_as_string("JWT_TOKEN_SECRET");
+        let allow_origin = os_var_as_string("ALLOW_ORIGIN");
 
         let environment = os_var_as_string("ENVIRONMENT");
         let mongo_url = format!(
@@ -61,6 +63,7 @@ impl Config<'_> {
             encoding_key,
             application_name: "bridgekeeper".to_string(),
             bind_to: address,
+            allow_origin,
         }
     }
 }
@@ -74,6 +77,7 @@ impl Display for Config<'_> {
             .field("mongo_url", &self.masked_mongo_url)
             .field("bind_to", &self.bind_to)
             .field("application_name", &self.application_name)
+            .field("allow_origin", &self.allow_origin)
             .finish()
     }
 }

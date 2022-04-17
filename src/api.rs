@@ -1,23 +1,27 @@
+extern crate argon2;
 #[macro_use]
 extern crate log;
-extern crate argon2;
 
-use axum::routing::{delete, get, post};
-use axum::{Extension, Router};
-use hyper::header::AUTHORIZATION;
 use std::error::Error;
 use std::iter::once;
 
-use crate::authorization_api::{add_authorization, approve_user, is_authorized, is_jwt_api_valid};
-use crate::avatar_api::{create_or_update_avatar, delete_avatar, get_avatar};
+use axum::http::header::AUTHORIZATION;
+use axum::http::Method;
+use axum::routing::{delete, get, post};
+use axum::{Extension, Router};
+use hyper::header::CONTENT_TYPE;
+use hyper::http::HeaderValue;
 use mongodb::options::ClientOptions;
 use mongodb::Client;
 use mongodb::Database;
 use tokio::signal;
 use tower::ServiceBuilder;
+use tower_http::cors::{CorsLayer, Origin};
 use tower_http::sensitive_headers::SetSensitiveRequestHeadersLayer;
 use tower_http::trace::TraceLayer;
 
+use crate::authorization_api::{add_authorization, approve_user, is_authorized, is_jwt_api_valid};
+use crate::avatar_api::{create_or_update_avatar, delete_avatar, get_avatar};
 use crate::config::Config;
 use crate::user_api::{
     change_password, confirm_totp_registration, create_jwt_api_token, create_user,
@@ -44,6 +48,12 @@ pub mod user_totp_models;
 mod util;
 
 pub fn application_routes(db: &Database, config: &Config<'static>) -> Router {
+    let user_endpoint = config
+        .allow_origin
+        .split(",")
+        .map(|origin| origin.parse().unwrap())
+        .collect::<Vec<HeaderValue>>();
+
     Router::new()
         .route("/user", get(get_user).post(create_user).put(update_user))
         .route("/user/login", post(login))
@@ -82,6 +92,17 @@ pub fn application_routes(db: &Database, config: &Config<'static>) -> Router {
                 .layer(Extension(db.clone()))
                 .layer(Extension(config.clone()))
                 .layer(TraceLayer::new_for_http()),
+        )
+        .layer(
+            CorsLayer::new()
+                .allow_headers(vec![CONTENT_TYPE]) /*vec![CONTENT_TYPE]*/
+                .allow_origin(Origin::list(user_endpoint)) /* (Origin::list(user_endpoint)) */
+                .allow_methods(vec![
+                    Method::GET,
+                    Method::POST,
+                    Method::PUT,
+                    Method::OPTIONS,
+                ]),
         )
 }
 

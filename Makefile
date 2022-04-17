@@ -51,3 +51,6 @@ live-up:
 
 live-down:
 	docker-compose -f docker-compose-live.yml --env-file etc/production.env down
+
+snapshot-docker-file: dev-infra-up fix tests run-build-in-docker
+	docker build -t bridgekeeper:snapshot -f docker-files/Dockerfile .

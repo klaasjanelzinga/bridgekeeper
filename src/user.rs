@@ -311,13 +311,15 @@ pub async fn create(
         )
         .await?;
     if optional_user.is_some() {
-        return Err(ErrorKind::IllegalRequest {
+        return Err(ErrorKind::EmailAddressAlreadyTaken {
             message: format!(
-                "Email address {} is already taken.",
+                "User name {} is already taken.",
                 create_user_request.email_address
             ),
         });
     }
+
+    verify_password(&create_user_request.new_password)?;
 
     let password_hash_and_salt = hash_data(&create_user_request.new_password)?;
     let new_user = User {

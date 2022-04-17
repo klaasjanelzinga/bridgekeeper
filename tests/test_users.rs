@@ -138,6 +138,25 @@ async fn test_create_user() {
     ()
 }
 
+/// Test create user with a weak password.
+/// - Create the user.
+/// - Validate the response of the get.
+/// - Get user with the user id should return the created user.
+#[tokio::test]
+async fn test_create_user_with_weak_password() {
+    let test_fixtures = common::setup().await;
+    common::empty_users_collection(&test_fixtures.db).await;
+
+    let mut create_user_request = create_user_request();
+    create_user_request.new_password = "123".to_string();
+    let created_user_response = create_user(&test_fixtures.app, &create_user_request).await;
+    assert!(created_user_response.is_err());
+    assert_eq!(
+        created_user_response.err().unwrap(),
+        StatusCode::BAD_REQUEST
+    );
+}
+
 /// Test the approval of users.
 /// - Create a user, the user should not be approved.
 /// - Apptove the user.

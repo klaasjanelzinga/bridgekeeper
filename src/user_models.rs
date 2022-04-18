@@ -123,6 +123,11 @@ impl Display for LoginRequest {
 pub struct LoginResponse {
     pub token: String,
     pub needs_otp: bool,
+
+    pub email_address: String,
+    pub display_name: Option<String>,
+    pub first_name: String,
+    pub last_name: String,
 }
 
 impl Display for LoginResponse {

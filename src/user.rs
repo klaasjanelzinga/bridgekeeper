@@ -158,6 +158,11 @@ pub async fn login(
             Ok(LoginResponse {
                 needs_otp: otp_is_configured,
                 token: token.token,
+
+                email_address: user.email_address,
+                first_name: user.first_name,
+                last_name: user.last_name,
+                display_name: user.display_name,
             })
         }
     }

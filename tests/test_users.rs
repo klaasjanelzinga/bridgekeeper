@@ -311,7 +311,7 @@ async fn test_update_user_authentication() {
 
 /// Test login the user:
 /// - Create the user.
-/// - Login and validate the token.
+/// - Login and validate the token and the response.
 /// - Login with an wrong-password.
 /// - Login with an invalid email address.
 #[tokio::test]
@@ -321,6 +321,21 @@ async fn test_login_user() {
 
     let login_data = create_and_login_user(&test_fixtures.app, &test_fixtures.db).await;
 
+    // Check login response
+    let login_response = login(
+        &test_fixtures.app,
+        &login_data.email_address,
+        &login_data.password,
+    )
+    .await
+    .unwrap();
+    assert_eq!(login_response.display_name, login_data.display_name);
+    assert_eq!(login_response.first_name, login_data.first_name);
+    assert_eq!(login_response.last_name, login_data.last_name);
+    assert_eq!(login_response.email_address, login_data.email_address);
+    assert_eq!(login_response.needs_otp, false);
+
+    // dissect the token and validate.
     let token_message = decode::<JwtClaims>(
         &login_data.access_token,
         &test_fixtures.config.decoding_key,

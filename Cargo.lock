@@ -156,7 +156,7 @@ dependencies = [
 
 [[package]]
 name = "bridgekeeper"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
  "axum",
  "base64 0.13.0",

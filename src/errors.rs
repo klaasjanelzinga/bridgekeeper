@@ -66,7 +66,10 @@ impl IntoResponse for ErrorKind {
 
             ErrorKind::UserNotApproved => {
                 warn!("User is not yet approved but is used.");
-                (StatusCode::UNAUTHORIZED, "".to_string())
+                (
+                    StatusCode::UNAUTHORIZED,
+                    "User is not yet approved. Please be patient!".to_string(),
+                )
             }
             ErrorKind::TokenTypeInvalid => {
                 warn!("Invalid token used on resource. Session invalidated.");

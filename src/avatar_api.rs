@@ -46,6 +46,6 @@ pub async fn create_or_update_avatar(
     jwt_token: AccessToken,
 ) -> Result<Json<UpdateAvatarResponse>, ErrorKind> {
     trace!("create_or_update_avatar(_, {})", jwt_token);
-    upsert_avatar_for_user(&jwt_token.user, &update_avatar_request.image_base64, &db).await?;
+    upsert_avatar_for_user(&jwt_token.user, &update_avatar_request.avatar_base64, &db).await?;
     Ok(Json(UpdateAvatarResponse { result: true }))
 }

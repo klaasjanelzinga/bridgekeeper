@@ -186,7 +186,7 @@ async fn test_approval_user() {
         .await
         .err()
         .unwrap(),
-        StatusCode::UNAUTHORIZED
+        StatusCode::BAD_REQUEST
     );
 
     assert!(approve_user(
@@ -329,6 +329,7 @@ async fn test_login_user() {
     )
     .await
     .unwrap();
+    assert_eq!(login_response.user_id, login_data.user_id);
     assert_eq!(login_response.display_name, login_data.display_name);
     assert_eq!(login_response.first_name, login_data.first_name);
     assert_eq!(login_response.last_name, login_data.last_name);
@@ -355,7 +356,7 @@ async fn test_login_user() {
     )
     .await;
     assert!(wrong_password.is_err());
-    assert_eq!(wrong_password.err().unwrap(), StatusCode::UNAUTHORIZED);
+    assert_eq!(wrong_password.err().unwrap(), StatusCode::BAD_REQUEST);
 
     let wrong_email = login(
         &test_fixtures.app,
@@ -364,7 +365,7 @@ async fn test_login_user() {
     )
     .await;
     assert!(wrong_email.is_err());
-    assert_eq!(wrong_email.err().unwrap(), StatusCode::UNAUTHORIZED);
+    assert_eq!(wrong_email.err().unwrap(), StatusCode::BAD_REQUEST);
 
     ()
 }
@@ -406,7 +407,7 @@ async fn test_change_password() {
     )
     .await;
     assert!(login_response.is_err());
-    assert_eq!(login_response.err().unwrap(), StatusCode::UNAUTHORIZED);
+    assert_eq!(login_response.err().unwrap(), StatusCode::BAD_REQUEST);
 
     // login with the new password -> Ok
     let login_response = login(&test_fixtures.app, &login_data.email_address, &new_password).await;
@@ -424,7 +425,7 @@ async fn test_change_password() {
     assert!(change_password_response_result.is_err());
     assert_eq!(
         change_password_response_result.err().unwrap(),
-        StatusCode::UNAUTHORIZED
+        StatusCode::BAD_REQUEST
     );
 
     // Test several invalid passwords

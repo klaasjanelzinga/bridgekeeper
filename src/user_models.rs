@@ -124,6 +124,7 @@ pub struct LoginResponse {
     pub token: String,
     pub needs_otp: bool,
 
+    pub user_id: String,
     pub email_address: String,
     pub display_name: Option<String>,
     pub first_name: String,

@@ -11,6 +11,7 @@ pub enum ErrorKind {
     CannotEncodePassword,
     CannotCreateJwtToken,
     UserNotApproved,
+    LoginUserNotFound,
     PasswordIncorrect,
     TokenInvalid,
     TokenNotFound,
@@ -53,7 +54,14 @@ pub enum ErrorKind {
 impl IntoResponse for ErrorKind {
     fn into_response(self) -> Response {
         let (status, error_message) = match self {
-            ErrorKind::PasswordIncorrect => (StatusCode::UNAUTHORIZED, "".to_string()),
+            ErrorKind::PasswordIncorrect => (
+                StatusCode::BAD_REQUEST,
+                "Email address or password incorrect".to_string(),
+            ),
+            ErrorKind::LoginUserNotFound => (
+                StatusCode::BAD_REQUEST,
+                "Email address or password incorrect".to_string(),
+            ),
             ErrorKind::TotpChallengeInvalid => (StatusCode::UNAUTHORIZED, "".to_string()),
             ErrorKind::NotAuthorized => (StatusCode::UNAUTHORIZED, "".to_string()),
             ErrorKind::RequiredHeadersNotFound => (StatusCode::UNAUTHORIZED, "".to_string()),
@@ -67,7 +75,7 @@ impl IntoResponse for ErrorKind {
             ErrorKind::UserNotApproved => {
                 warn!("User is not yet approved but is used.");
                 (
-                    StatusCode::UNAUTHORIZED,
+                    StatusCode::BAD_REQUEST,
                     "User is not yet approved. Please be patient!".to_string(),
                 )
             }
@@ -128,6 +136,7 @@ impl Display for ErrorKind {
             ErrorKind::EntityNotFound { message } => write!(f, "EntityNotFound: {}", message),
             ErrorKind::IllegalRequest { message } => write!(f, "IllegalRequest: {}", message),
             ErrorKind::PasswordInvalid { message } => write!(f, "PasswordInvalid: {}", message),
+            ErrorKind::LoginUserNotFound => write!(f, "LoginUserNotFound"),
             ErrorKind::EmailAddressAlreadyTaken { message } => {
                 write!(f, "EmailAddressAlreadyTaken: {}", message)
             }

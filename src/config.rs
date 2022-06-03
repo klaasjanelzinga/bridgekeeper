@@ -52,7 +52,7 @@ impl Config<'_> {
         let decoding_key = DecodingKey::from_base64_secret(&based).unwrap();
         let encoding_key = EncodingKey::from_base64_secret(&based).unwrap();
 
-        let address: SocketAddr = "0.0.0.0:8000".parse().unwrap();
+        let address: SocketAddr = "0.0.0.0:5003".parse().unwrap();
 
         Config {
             environment,

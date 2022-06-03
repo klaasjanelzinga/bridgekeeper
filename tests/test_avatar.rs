@@ -38,7 +38,7 @@ async fn test_get_avatar_and_create() {
     // Create the avatar
     let paragraph: Vec<String> = Paragraphs(1..2).fake();
     let update_avatar_request = UpdateAvatarRequest {
-        image_base64: base64::encode(paragraph.first().unwrap()),
+        avatar_base64: base64::encode(paragraph.first().unwrap()),
     };
     let response = create_or_update_avatar(
         &test_fixtures.app,
@@ -57,7 +57,7 @@ async fn test_get_avatar_and_create() {
 
     // Update the avatar to "new-avatar-data"
     let update_avatar_request = UpdateAvatarRequest {
-        image_base64: String::from("new-avatar-data"),
+        avatar_base64: String::from("new-avatar-data"),
     };
     let response = create_or_update_avatar(
         &test_fixtures.app,
@@ -102,7 +102,7 @@ async fn test_create_avatar_authentication() {
 
     let paragraph: Vec<String> = Paragraphs(1..2).fake();
     let update_avatar_request = UpdateAvatarRequest {
-        image_base64: base64::encode(paragraph.first().unwrap()),
+        avatar_base64: base64::encode(paragraph.first().unwrap()),
     };
     assert!(create_or_update_avatar(
         &test_fixtures.app,

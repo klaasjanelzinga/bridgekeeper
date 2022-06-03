@@ -74,10 +74,6 @@ pub fn application_routes(db: &Database, config: &Config<'static>) -> Router {
         )
         .route("/user/validate-totp", post(validate_totp))
         .route("/user/refresh-token", post(refresh_token))
-        .route("/authorization", post(add_authorization))
-        .route("/authorization/user", post(is_authorized))
-        .route("/authorization/user/approval", post(approve_user))
-        .route("/authorization/jwt-api-token", post(is_jwt_api_valid))
         .route(
             "/user/jwt-api-token",
             post(create_jwt_api_token).delete(delete_jwt_api_token),
@@ -86,6 +82,11 @@ pub fn application_routes(db: &Database, config: &Config<'static>) -> Router {
             "/user/jwt-api-token/:public_token_id",
             delete(delete_jwt_api_token),
         )
+        /* Authorization routes. */
+        .route("/authorization", post(add_authorization))
+        .route("/authorization/user", post(is_authorized))
+        .route("/authorization/user/approval", post(approve_user))
+        .route("/authorization/jwt-api-token", post(is_jwt_api_valid))
         .layer(
             ServiceBuilder::new()
                 .layer(SetSensitiveRequestHeadersLayer::new(once(AUTHORIZATION)))
@@ -95,10 +96,11 @@ pub fn application_routes(db: &Database, config: &Config<'static>) -> Router {
         )
         .layer(
             CorsLayer::new()
-                .allow_headers(vec![CONTENT_TYPE]) /*vec![CONTENT_TYPE]*/
+                .allow_headers(vec![CONTENT_TYPE, AUTHORIZATION])
                 .allow_origin(Origin::list(user_endpoint)) /* (Origin::list(user_endpoint)) */
                 .allow_methods(vec![
                     Method::GET,
+                    Method::DELETE,
                     Method::POST,
                     Method::PUT,
                     Method::OPTIONS,

@@ -18,7 +18,7 @@ impl Display for GetAvatarResponse {
 
 #[derive(Serialize, Deserialize)]
 pub struct UpdateAvatarRequest {
-    pub image_base64: String,
+    pub avatar_base64: String,
 }
 
 impl Display for UpdateAvatarRequest {

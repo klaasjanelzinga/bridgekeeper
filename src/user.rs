@@ -134,7 +134,7 @@ pub async fn login(
 ) -> Result<LoginResponse, ErrorKind> {
     trace!("login({}, _)", login_request);
     match get_by_email(&login_request.email_address, db).await {
-        Err(_) => Err(ErrorKind::NotAuthorized),
+        Err(_) => Err(ErrorKind::LoginUserNotFound),
         Ok(user) => {
             if !user.is_approved {
                 return Err(ErrorKind::UserNotApproved);
@@ -159,6 +159,7 @@ pub async fn login(
                 needs_otp: otp_is_configured,
                 token: token.token,
 
+                user_id: user.user_id,
                 email_address: user.email_address,
                 first_name: user.first_name,
                 last_name: user.last_name,

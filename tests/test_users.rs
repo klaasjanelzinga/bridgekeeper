@@ -7,7 +7,7 @@ use fake::Fake;
 use jsonwebtoken::{decode, Algorithm, Validation};
 
 use bridgekeeper_api::jwt_models::{JwtClaims, JwtType};
-use bridgekeeper_api::user_models::UpdateUserRequest;
+use bridgekeeper_api::user_models::{CreateUserRequest, UpdateUserRequest};
 
 use crate::common::api_calls::{
     approve_user, change_password, create_user, delete_user, get_user, login, update_user,
@@ -63,6 +63,7 @@ async fn test_delete_user() {
     // login (should fail)
     let login_response = login(
         &test_fixtures.app,
+        &login_data.for_application,
         &login_data.email_address,
         &login_data.password,
     )
@@ -113,6 +114,7 @@ async fn test_get_user_authentication() {
 /// - Create the user.
 /// - Validate the response of the get.
 /// - Get user with the user id should return the created user.
+/// - Create the same user again, should return 'Already exists'.
 #[tokio::test]
 async fn test_create_user() {
     let test_fixtures = common::setup().await;
@@ -120,18 +122,24 @@ async fn test_create_user() {
 
     let admin_user = create_and_login_admin_user(&test_fixtures.app, &test_fixtures.db).await;
 
-    let create_user_request = create_user_request();
-    let created_user_response = create_user(&test_fixtures.app, &create_user_request).await;
+    let create_first_user_request = create_user_request();
+    let created_user_response = create_user(&test_fixtures.app, &create_first_user_request).await;
     assert!(created_user_response.is_ok());
     let created_user = created_user_response.unwrap();
 
     assert_eq!(
-        create_user_request.email_address,
+        create_first_user_request.email_address,
         created_user.email_address
     );
-    assert_eq!(create_user_request.first_name, created_user.first_name);
-    assert_eq!(create_user_request.last_name, created_user.last_name);
-    assert_eq!(create_user_request.display_name, created_user.display_name);
+    assert_eq!(
+        create_first_user_request.first_name,
+        created_user.first_name
+    );
+    assert_eq!(create_first_user_request.last_name, created_user.last_name);
+    assert_eq!(
+        create_first_user_request.display_name,
+        created_user.display_name
+    );
     assert!(created_user.needs_approval);
     assert!(created_user.user_id.len() > 1);
 
@@ -147,8 +155,9 @@ async fn test_create_user() {
     // login and get user
     let token = login(
         &test_fixtures.app,
-        &create_user_request.email_address,
-        &create_user_request.new_password,
+        &create_first_user_request.for_application,
+        &create_first_user_request.email_address,
+        &create_first_user_request.new_password,
     )
     .await
     .unwrap()
@@ -163,9 +172,23 @@ async fn test_create_user() {
     );
 
     // create the user again, should return already created.
-    let created_user_second_time = create_user(&test_fixtures.app, &create_user_request).await;
-
+    let created_user_second_time =
+        create_user(&test_fixtures.app, &create_first_user_request).await;
     assert!(created_user_second_time.is_err());
+
+    let create_same_user_other_application = CreateUserRequest {
+        for_application: format!("{}-other", created_user.for_application),
+        email_address: created_user.email_address,
+        first_name: created_user.first_name,
+        last_name: created_user.last_name,
+        display_name: created_user.display_name,
+        new_password: create_first_user_request.new_password,
+    };
+
+    // create the user again, other app.
+    let create_user_other_application =
+        create_user(&test_fixtures.app, &create_same_user_other_application).await;
+    assert!(create_user_other_application.is_ok());
 
     ()
 }
@@ -191,7 +214,7 @@ async fn test_create_user_with_weak_password() {
 
 /// Test the approval of users.
 /// - Create a user, the user should not be approved.
-/// - Apptove the user.
+/// - Approve the user.
 /// - Login should work
 #[tokio::test]
 async fn test_approval_user() {
@@ -211,6 +234,7 @@ async fn test_approval_user() {
     assert_eq!(
         login(
             &test_fixtures.app,
+            &create_user_request.for_application,
             &create_user_request.email_address,
             &create_user_request.new_password,
         )
@@ -228,9 +252,10 @@ async fn test_approval_user() {
     .await
     .unwrap());
 
-    // The login should succeed, since the user is not yet approved.
+    // The login should succeed, since the user is approved.
     login(
         &test_fixtures.app,
+        &create_user_request.for_application,
         &create_user_request.email_address,
         &create_user_request.new_password,
     )
@@ -355,6 +380,7 @@ async fn test_login_user() {
     // Check login response
     let login_response = login(
         &test_fixtures.app,
+        &login_data.for_application,
         &login_data.email_address,
         &login_data.password,
     )
@@ -382,6 +408,7 @@ async fn test_login_user() {
 
     let wrong_password = login(
         &test_fixtures.app,
+        &login_data.for_application,
         &login_data.email_address,
         &format!("wrong-{}", login_data.password.clone()),
     )
@@ -391,6 +418,7 @@ async fn test_login_user() {
 
     let wrong_email = login(
         &test_fixtures.app,
+        &login_data.for_application,
         &format!("invalid-{}", login_data.email_address.clone()),
         &login_data.password,
     )
@@ -433,6 +461,7 @@ async fn test_change_password() {
     // login with the old password -> NotAuthorized
     let login_response = login(
         &test_fixtures.app,
+        &login_data.for_application,
         &login_data.email_address,
         &login_data.password,
     )
@@ -441,7 +470,13 @@ async fn test_change_password() {
     assert_eq!(login_response.err().unwrap(), StatusCode::BAD_REQUEST);
 
     // login with the new password -> Ok
-    let login_response = login(&test_fixtures.app, &login_data.email_address, &new_password).await;
+    let login_response = login(
+        &test_fixtures.app,
+        &login_data.for_application,
+        &login_data.email_address,
+        &new_password,
+    )
+    .await;
     assert!(login_response.is_ok());
     let new_access_token = login_response.unwrap().token;
 

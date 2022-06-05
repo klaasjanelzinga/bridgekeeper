@@ -20,8 +20,9 @@ impl Display for UserJwtApiToken {
 pub struct User {
     #[serde(skip_serializing)]
     pub _id: Option<Bson>,
-
     pub user_id: String,
+
+    pub for_application: String,
     pub email_address: String,
     pub first_name: String,
     pub last_name: String,
@@ -47,6 +48,7 @@ impl Display for User {
             .field("_id", &self._id)
             .field("user_id", &self.user_id)
             .field("email_address", &self.email_address)
+            .field("for_application", &self.for_application)
             .finish()
     }
 }
@@ -54,6 +56,7 @@ impl Display for User {
 #[derive(Serialize, Deserialize)]
 pub struct GetUserResponse {
     pub user_id: String,
+    pub for_application: String,
     pub email_address: String,
     pub first_name: String,
     pub last_name: String,
@@ -65,6 +68,7 @@ impl From<&User> for GetUserResponse {
     fn from(user: &User) -> Self {
         GetUserResponse {
             user_id: user.user_id.clone(),
+            for_application: user.for_application.clone(),
             email_address: user.email_address.clone(),
             first_name: user.first_name.clone(),
             last_name: user.last_name.clone(),
@@ -107,6 +111,7 @@ impl Display for UpdateUserRequest {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct LoginRequest {
+    pub for_application: String,
     pub email_address: String,
     pub password: String,
 }
@@ -114,6 +119,7 @@ pub struct LoginRequest {
 impl Display for LoginRequest {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("LoginRequest")
+            .field("for_application", &self.for_application)
             .field("email_address", &self.email_address)
             .finish()
     }
@@ -129,6 +135,7 @@ pub struct LoginResponse {
     pub display_name: Option<String>,
     pub first_name: String,
     pub last_name: String,
+    pub for_application: String,
 }
 
 impl Display for LoginResponse {
@@ -191,6 +198,7 @@ impl Display for EmptyOkResponse {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CreateUserRequest {
+    pub for_application: String,
     pub email_address: String,
     pub first_name: String,
     pub last_name: String,
@@ -201,6 +209,7 @@ pub struct CreateUserRequest {
 impl Display for CreateUserRequest {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CreateUserRequest")
+            .field("for_application", &self.for_application)
             .field("email_address", &self.email_address)
             .field("first_name", &self.first_name)
             .field("last_name", &self.last_name)

@@ -1,11 +1,8 @@
 #[macro_use]
 extern crate log;
 
-use std::time::{SystemTime, UNIX_EPOCH};
-
 use axum::http::StatusCode;
 use jsonwebtoken::{decode, Algorithm, Validation};
-use totp_lite::{totp, totp_custom, Sha1, Sha512};
 
 use bridgekeeper_api::jwt_models::{JwtClaims, JwtType};
 
@@ -75,6 +72,7 @@ async fn test_totp_flow() {
     // second login with a required OTP challenge. Should Ok with a token that is only valid for OTP.
     let second_login = login(
         &test_fixtures.app,
+        &login_data.for_application,
         &login_data.email_address,
         &login_data.password,
     )
@@ -105,6 +103,7 @@ async fn test_totp_flow() {
     // Redo the login, since the one shot token is invalidated.
     let second_login = login(
         &test_fixtures.app,
+        &login_data.for_application,
         &login_data.email_address,
         &login_data.password,
     )
@@ -202,6 +201,7 @@ async fn test_totp_flow_with_backup_codes() {
     // Redo the login, since the one shot token is invalidated.
     let second_login = login(
         &test_fixtures.app,
+        &login_data.for_application,
         &login_data.email_address,
         &login_data.password,
     )
@@ -218,6 +218,7 @@ async fn test_totp_flow_with_backup_codes() {
     // Redo the login, since the one shot token is invalidated.
     let second_login = login(
         &test_fixtures.app,
+        &login_data.for_application,
         &login_data.email_address,
         &login_data.password,
     )

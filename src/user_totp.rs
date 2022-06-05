@@ -41,11 +41,10 @@ pub async fn start_totp_registration_for_user(
         util::random_string(8),
     ]
     .to_vec();
-    let label = format!("Bridgekeeper:{}", user.email_address);
     // Note: period, algorithm, digits ignored by google authenticator.
     let uri = format!(
-        "otpauth://totp/{}?secret={}&issuer=Newsroom&digits=6&algorithm=sha1&period=30",
-        user.email_address, secret_encoded
+        "otpauth://totp/{}?secret={}&issuer={}&digits=6&algorithm=sha1&period=30",
+        user.email_address, secret_encoded, user.for_application,
     );
 
     // store the pending otp codes with the user.

@@ -47,12 +47,14 @@ pub async fn create_user(
 #[allow(dead_code)]
 pub async fn login(
     router: &Router,
+    for_application: &str,
     email_address: &str,
     password: &str,
 ) -> Result<LoginResponse, StatusCode> {
     let login_request = LoginRequest {
-        email_address: String::from(email_address),
-        password: String::from(password),
+        for_application: for_application.to_string(),
+        email_address: email_address.to_string(),
+        password: password.to_string(),
     };
     let response = router
         .clone()

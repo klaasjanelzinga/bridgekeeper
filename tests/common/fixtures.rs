@@ -2,10 +2,11 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use axum::Router;
 use fake::faker::internet::en::{Password, SafeEmail};
+use fake::faker::lorem::en::Word;
 use fake::faker::name::en::{FirstName, LastName, Name};
 use fake::Fake;
 use mongodb::Database;
-use totp_lite::{totp, totp_custom, Sha1, Sha512};
+use totp_lite::{totp_custom, Sha1};
 
 use bridgekeeper_api::authorization::create;
 use bridgekeeper_api::authorization_models::AddAuthorizationRequest;
@@ -18,8 +19,14 @@ pub fn fake_password() -> String {
     format!("Rr$3-{}", Password(10..15).fake::<String>())
 }
 
+pub fn fake_application() -> String {
+    let app: String = Word().fake();
+    format!("app-{}", app)
+}
+
 pub struct CreateAndLoginData {
     pub user_id: String,
+    pub for_application: String,
     pub access_token: String,
     pub refresh_token: Option<String>,
     pub email_address: String,
@@ -34,6 +41,7 @@ pub struct CreateAndLoginData {
 pub fn create_user_request() -> CreateUserRequest {
     CreateUserRequest {
         email_address: SafeEmail().fake::<String>(),
+        for_application: fake_application(),
         first_name: FirstName().fake(),
         last_name: LastName().fake(),
         display_name: Name().fake(),
@@ -63,6 +71,7 @@ pub async fn create_and_login_user(router: &Router, db: &Database) -> CreateAndL
 
     let login_response = login(
         router,
+        &created_user.for_application,
         &create_user_request.email_address,
         &create_user_request.new_password,
     )
@@ -75,6 +84,7 @@ pub async fn create_and_login_user(router: &Router, db: &Database) -> CreateAndL
         access_token: login_response.token,
         refresh_token: None,
         user_id: created_user.user_id,
+        for_application: created_user.for_application,
         email_address: created_user.email_address,
         password: create_user_request.new_password,
         first_name: create_user_request.first_name,
@@ -121,14 +131,20 @@ pub async fn create_and_login_user_with_totp_not_totp_verified(
     )
     .await
     .expect("Confirmation totp should succeed");
-    let second_login = login(&router, &user.email_address, &user.password)
-        .await
-        .expect("Login should succeed");
+    let second_login = login(
+        &router,
+        &user.for_application,
+        &user.email_address,
+        &user.password,
+    )
+    .await
+    .expect("Login should succeed");
 
     return CreateAndLoginData {
         user_id: user.user_id.clone(),
         access_token: second_login.token.clone(),
         refresh_token: None,
+        for_application: user.for_application,
         email_address: user.email_address.clone(),
         password: user.password.clone(),
         first_name: user.first_name.clone(),
@@ -156,6 +172,7 @@ pub async fn create_and_login_user_with_totp(router: &Router, db: &Database) -> 
         user_id: unverified.user_id.clone(),
         access_token: validated_totp_response.access_token,
         refresh_token: Some(validated_totp_response.refresh_token),
+        for_application: unverified.for_application,
         email_address: unverified.email_address,
         password: unverified.password.clone(),
         first_name: unverified.first_name.clone(),

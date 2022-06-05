@@ -99,10 +99,20 @@ pub async fn update_user(db_user: &User, db: &Database) -> Result<bool, ErrorKin
 }
 
 /// Fetches the user entity by email_address. Returns EntityNotFound if not found.
-async fn get_by_email(email_address: &str, db: &Database) -> Result<User, ErrorKind> {
+async fn get_by_email_and_application(
+    email_address: &str,
+    for_application: &str,
+    db: &Database,
+) -> Result<User, ErrorKind> {
     let collection = user_collection(db);
     let optional_user = collection
-        .find_one(doc! {"email_address": &email_address}, None)
+        .find_one(
+            doc! {
+                "email_address": &email_address,
+                "for_application": &for_application,
+            },
+            None,
+        )
         .await?;
     match optional_user {
         Some(user) => Ok(user),
@@ -133,7 +143,13 @@ pub async fn login(
     db: &Database,
 ) -> Result<LoginResponse, ErrorKind> {
     trace!("login({}, _)", login_request);
-    match get_by_email(&login_request.email_address, db).await {
+    match get_by_email_and_application(
+        &login_request.email_address,
+        &login_request.for_application,
+        db,
+    )
+    .await
+    {
         Err(_) => Err(ErrorKind::LoginUserNotFound),
         Ok(user) => {
             if !user.is_approved {
@@ -160,6 +176,7 @@ pub async fn login(
                 token: token.token,
 
                 user_id: user.user_id,
+                for_application: user.for_application,
                 email_address: user.email_address,
                 first_name: user.first_name,
                 last_name: user.last_name,
@@ -299,6 +316,7 @@ pub async fn refresh_token_for_user(
 ///
 /// ## Args:
 /// - user: The user to create
+/// - for_application: The application to create the user for.
 /// - db: The mongo database instance.
 ///
 /// ## Returns:
@@ -312,7 +330,10 @@ pub async fn create(
     let collection = user_collection(db);
     let optional_user = collection
         .find_one(
-            doc! {"email_address": &create_user_request.email_address},
+            doc! {
+                "email_address": &create_user_request.email_address,
+                "for_application": &create_user_request.for_application,
+            },
             None,
         )
         .await?;
@@ -332,6 +353,7 @@ pub async fn create(
         _id: None,
         user_id: create_id(),
         email_address: create_user_request.email_address.clone(),
+        for_application: create_user_request.for_application.clone(),
         first_name: create_user_request.first_name.clone(),
         last_name: create_user_request.last_name.clone(),
         display_name: create_user_request.display_name.clone(),

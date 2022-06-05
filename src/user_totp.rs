@@ -1,13 +1,14 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use data_encoding::BASE32;
 use mongodb::Database;
-use totp_lite::{totp, Sha512};
+use totp_lite::{totp_custom, Sha1};
 
 use crate::config::Config;
 use crate::errors::ErrorKind;
 use crate::user_models::{LoginWithOtpResponse, User};
 use crate::user_totp_models::{
-    ConfirmTotpResponse, StartTotpRegistrationResult, ValidateTotpRequest,
+    StartTotpRegistrationResult, ValidateTotpRequest, ValidateTotpWithBackupCodeRequest,
 };
 use crate::{jwt, user, util};
 
@@ -29,6 +30,8 @@ pub async fn start_totp_registration_for_user(
 ) -> Result<StartTotpRegistrationResult, ErrorKind> {
     trace!("start_totp_registration({})", user);
     let secret = util::random_string(32);
+    let secret_encoded = BASE32.encode(secret.as_bytes());
+
     let backup_codes = [
         util::random_string(8),
         util::random_string(8),
@@ -38,8 +41,12 @@ pub async fn start_totp_registration_for_user(
         util::random_string(8),
     ]
     .to_vec();
-    let label = format!("Linkje:{}", user.email_address);
-    let uri = format!("otpauth://totp/{}?secret={}&issuer=Linkje", label, secret);
+    let label = format!("Bridgekeeper:{}", user.email_address);
+    // Note: period, algorithm, digits ignored by google authenticator.
+    let uri = format!(
+        "otpauth://totp/{}?secret={}&issuer=Newsroom&digits=6&algorithm=sha1&period=30",
+        user.email_address, secret_encoded
+    );
 
     // store the pending otp codes with the user.
     let mut db_user = user::get_by_id(&user.user_id, db).await?;
@@ -67,7 +74,7 @@ fn validate_totp(otp_hash: &Option<String>, challenge: &str) -> Result<bool, Err
                 .duration_since(UNIX_EPOCH)
                 .unwrap()
                 .as_secs();
-            let totp_value = totp::<Sha512>(otp.as_bytes(), seconds);
+            let totp_value = totp_custom::<Sha1>(30, 6, otp.as_bytes(), seconds);
             if totp_value != challenge {
                 info!("Token value does not match");
                 return Err(ErrorKind::TotpChallengeInvalid);
@@ -90,7 +97,7 @@ pub async fn confirm_totp_code_for_user(
     user: &User,
     request: &ValidateTotpRequest,
     db: &Database,
-) -> Result<ConfirmTotpResponse, ErrorKind> {
+) -> Result<bool, ErrorKind> {
     trace!("confirm_totp_code_for_user({}, _)", user);
     if user.pending_otp_hash.is_none() || user.pending_backup_codes.is_empty() {
         return Err(ErrorKind::IllegalRequest {
@@ -109,7 +116,7 @@ pub async fn confirm_totp_code_for_user(
 
     user::update_user(&db_user, db).await?;
 
-    Ok(ConfirmTotpResponse { success: true })
+    Ok(true)
 }
 
 /// Validates a totp challenge.
@@ -130,6 +137,48 @@ pub async fn validate_totp_for_user(
 ) -> Result<LoginWithOtpResponse, ErrorKind> {
     validate_totp(&user.otp_hash, &request.totp_challenge)?;
     let mut db_user = user::get_by_id(&user.user_id, db).await?;
+    let access_token = jwt::create_access_token(user, &config.encoding_key)?;
+    let refresh_token = jwt::create_refresh_token(user, &config.encoding_key)?;
+
+    db_user.refresh_token_id = Some(refresh_token.token_id);
+    db_user.access_token_id = Some(access_token.token_id);
+    user::update_user(&db_user, db).await?;
+
+    Ok(LoginWithOtpResponse {
+        access_token: access_token.token,
+        refresh_token: refresh_token.token,
+    })
+}
+
+/// Validates a totp challenge by using a backup code.
+///
+/// ## Args:
+/// - user: The user to confirm the totp for.
+/// - config: The application configuration.
+/// - request: The request containing the backup code.
+/// - db: Valid db mongo instance.
+///
+/// ## Returns:
+/// A new token set for the user if the challenge succeeds, or an error otherwise.
+pub async fn validate_totp_with_backup_code_for_user(
+    user: &User,
+    config: &Config<'_>,
+    request: &ValidateTotpWithBackupCodeRequest,
+    db: &Database,
+) -> Result<LoginWithOtpResponse, ErrorKind> {
+    let valid_code = user.otp_backup_codes.contains(&request.backup_code);
+    if !valid_code {
+        return Err(ErrorKind::NotAuthorized);
+    }
+    let mut db_user = user::get_by_id(&user.user_id, db).await?;
+
+    let index = db_user
+        .otp_backup_codes
+        .iter()
+        .position(|x| x == &request.backup_code)
+        .unwrap();
+    db_user.otp_backup_codes.remove(index);
+
     let access_token = jwt::create_access_token(user, &config.encoding_key)?;
     let refresh_token = jwt::create_refresh_token(user, &config.encoding_key)?;
 

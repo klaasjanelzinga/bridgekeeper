@@ -394,10 +394,7 @@ pub async fn update(
 /// ## Returns:
 /// Ok if all went well or an Error:
 /// - EntityNotFound: if the user is not found in the datastore.
-pub async fn delete_for_user(
-    user: &User,
-    db: &Database,
-) -> Result<bool, ErrorKind> {
+pub async fn delete_for_user(user: &User, db: &Database) -> Result<bool, ErrorKind> {
     let delete_result = user_collection(db)
         .delete_one(doc! {"user_id": &user.user_id}, None)
         .await?;

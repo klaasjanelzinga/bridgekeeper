@@ -40,3 +40,5 @@ totp-lite = "1.0.3"
 
 fake = "2.4"
 regex = "1.5"
+
+data-encoding = "2.3.2"

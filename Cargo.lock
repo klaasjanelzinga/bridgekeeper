@@ -161,6 +161,7 @@ dependencies = [
  "axum",
  "base64 0.13.0",
  "chrono",
+ "data-encoding",
  "env_logger 0.9.0",
  "fake",
  "futures",

@@ -5,14 +5,17 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use axum::http::StatusCode;
 use jsonwebtoken::{decode, Algorithm, Validation};
-use totp_lite::{totp, Sha512};
+use totp_lite::{totp, totp_custom, Sha1, Sha512};
 
 use bridgekeeper_api::jwt_models::{JwtClaims, JwtType};
 
 use crate::common::api_calls::{
     confirm_totp, get_avatar, get_user, login, start_totp, validate_totp,
+    validate_totp_with_backup_code,
 };
-use crate::common::fixtures::{calculate_totp_value, create_and_login_user};
+use crate::common::fixtures::{
+    calculate_totp_value, create_and_login_user, create_and_login_user_with_totp,
+};
 
 mod common;
 
@@ -162,11 +165,7 @@ async fn test_totp_flow_with_invalid_codes() {
         .unwrap();
 
     // Calculate the correct TOTP for the secret.
-    let seconds: u64 = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-    let correct_totp_value = totp::<Sha512>(registration_response.secret.as_bytes(), seconds);
+    let correct_totp_value = calculate_totp_value(&registration_response.secret);
 
     // Confirm with an invalid token.
     let response = confirm_totp(&test_fixtures.app, &login_data.access_token, "invalid").await;
@@ -185,4 +184,53 @@ async fn test_totp_flow_with_invalid_codes() {
     assert_eq!(confirm_response.success, true);
 
     ()
+}
+
+/// Test the totp backup codes for verification.
+/// - Create a totp user.
+/// - Login with username / password.
+/// - Use a backup code as totp challenge.
+/// - Logiun again
+/// - Use the same backup again, this should fail since backup codes may be used only once.
+#[tokio::test]
+async fn test_totp_flow_with_backup_codes() {
+    let test_fixtures = common::setup().await;
+    common::empty_users_collection(&test_fixtures.db).await;
+
+    let login_data = create_and_login_user_with_totp(&test_fixtures.app, &test_fixtures.db).await;
+
+    // Redo the login, since the one shot token is invalidated.
+    let second_login = login(
+        &test_fixtures.app,
+        &login_data.email_address,
+        &login_data.password,
+    )
+    .await
+    .unwrap();
+    assert!(second_login.needs_otp);
+
+    // login using backup code
+    let backup_code = login_data.backup_codes.get(3).unwrap();
+    let backup_totp_response =
+        validate_totp_with_backup_code(&test_fixtures.app, &second_login.token, backup_code).await;
+    assert!(backup_totp_response.is_ok());
+
+    // Redo the login, since the one shot token is invalidated.
+    let second_login = login(
+        &test_fixtures.app,
+        &login_data.email_address,
+        &login_data.password,
+    )
+    .await
+    .unwrap();
+    assert!(second_login.needs_otp);
+
+    // login using backup code
+    let backup_totp_response =
+        validate_totp_with_backup_code(&test_fixtures.app, &second_login.token, backup_code).await;
+    assert!(backup_totp_response.is_err());
+    assert_eq!(
+        backup_totp_response.err().unwrap(),
+        StatusCode::UNAUTHORIZED
+    );
 }

@@ -1,9 +1,9 @@
+use crate::avatar::delete_avatar_for_user;
 use axum::extract::{Extension, Path};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
 use mongodb::Database;
-use crate::avatar::delete_avatar_for_user;
 
 use crate::errors::ErrorKind;
 use crate::jwt::{create_api_jwt_token_for_user, delete_jwt_api_token_for_user};
@@ -16,9 +16,10 @@ use crate::user_models::{
 };
 use crate::user_totp::{
     confirm_totp_code_for_user, start_totp_registration_for_user, validate_totp_for_user,
+    validate_totp_with_backup_code_for_user,
 };
 use crate::user_totp_models::{
-    ConfirmTotpResponse, StartTotpRegistrationResult, ValidateTotpRequest,
+    StartTotpRegistrationResult, ValidateTotpRequest, ValidateTotpWithBackupCodeRequest,
 };
 use crate::Config;
 
@@ -75,16 +76,16 @@ pub async fn create_user(
 pub async fn delete_user(
     Extension(db): Extension<Database>,
     valid_jwt_token: AccessToken,
-) -> Result <Json<EmptyOkResponse>, ErrorKind> {
+) -> Result<Json<EmptyOkResponse>, ErrorKind> {
     trace!("delete_user(_, {}", valid_jwt_token);
 
     let result = delete_avatar_for_user(&valid_jwt_token.user, &db).await;
     match result {
-        Ok(_) | Err(ErrorKind::EntityNotFound{ message: _}) => {
+        Ok(_) | Err(ErrorKind::EntityNotFound { message: _ }) => {
             delete_for_user(&valid_jwt_token.user, &db).await?;
-            Ok(Json(EmptyOkResponse{success: true}))
-        },
-        Err(error_kind) => Err(error_kind)
+            Ok(Json(EmptyOkResponse { success: true }))
+        }
+        Err(error_kind) => Err(error_kind),
     }
 }
 
@@ -158,10 +159,10 @@ pub async fn confirm_totp_registration(
     Json(validate_totp_request): Json<ValidateTotpRequest>,
     jwt_token: AccessToken,
     Extension(db): Extension<Database>,
-) -> Result<Json<ConfirmTotpResponse>, ErrorKind> {
+) -> Result<Json<EmptyOkResponse>, ErrorKind> {
     trace!("confirm_totp_registration({}, _)", jwt_token);
-    let result = confirm_totp_code_for_user(&jwt_token.user, &validate_totp_request, &db).await?;
-    Ok(Json(result))
+    confirm_totp_code_for_user(&jwt_token.user, &validate_totp_request, &db).await?;
+    Ok(Json(EmptyOkResponse { success: true }))
 }
 
 /// Validate a totp challenge.
@@ -178,6 +179,28 @@ pub async fn validate_totp(
     trace!("validate_totp({}, _)", jwt_token);
     let result =
         validate_totp_for_user(&jwt_token.user, &config, &validate_totp_request, &db).await?;
+    Ok(Json(result))
+}
+
+/// Validate a totp challenge with a backup code.
+///
+/// Authorization: One Shot Token.
+///
+/// Resources: Database, Config.
+pub async fn validate_totp_with_backup_code(
+    Extension(config): Extension<Config<'_>>,
+    validate_totp_request: Json<ValidateTotpWithBackupCodeRequest>,
+    jwt_token: OneShotToken,
+    Extension(db): Extension<Database>,
+) -> Result<Json<LoginWithOtpResponse>, ErrorKind> {
+    trace!("validate_totp({}, _)", jwt_token);
+    let result = validate_totp_with_backup_code_for_user(
+        &jwt_token.user,
+        &config,
+        &validate_totp_request,
+        &db,
+    )
+    .await?;
     Ok(Json(result))
 }
 

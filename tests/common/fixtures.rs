@@ -5,7 +5,7 @@ use fake::faker::internet::en::{Password, SafeEmail};
 use fake::faker::name::en::{FirstName, LastName, Name};
 use fake::Fake;
 use mongodb::Database;
-use totp_lite::{totp, Sha512};
+use totp_lite::{totp, totp_custom, Sha1, Sha512};
 
 use bridgekeeper_api::authorization::create;
 use bridgekeeper_api::authorization_models::AddAuthorizationRequest;
@@ -28,6 +28,7 @@ pub struct CreateAndLoginData {
     pub last_name: String,
     pub display_name: Option<String>,
     pub totp_secret: Option<String>,
+    pub backup_codes: Vec<String>,
 }
 
 pub fn create_user_request() -> CreateUserRequest {
@@ -45,7 +46,7 @@ pub fn calculate_totp_value(secret: &str) -> String {
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_secs();
-    totp::<Sha512>(secret.as_bytes(), seconds)
+    totp_custom::<Sha1>(30, 6, secret.as_bytes(), seconds)
 }
 
 #[allow(dead_code)]
@@ -80,6 +81,7 @@ pub async fn create_and_login_user(router: &Router, db: &Database) -> CreateAndL
         last_name: create_user_request.last_name,
         display_name: create_user_request.display_name,
         totp_secret: None,
+        backup_codes: Vec::new(),
     };
 }
 
@@ -110,6 +112,8 @@ pub async fn create_and_login_user_with_totp_not_totp_verified(
     let totp_start = start_totp(&router, &user.access_token)
         .await
         .expect("Start of the totp should succeed");
+    let backup_codes = totp_start.backup_codes.clone();
+
     confirm_totp(
         &router,
         &user.access_token,
@@ -131,6 +135,7 @@ pub async fn create_and_login_user_with_totp_not_totp_verified(
         last_name: user.last_name.clone(),
         display_name: None,
         totp_secret: Some(totp_start.secret.clone()),
+        backup_codes: backup_codes,
     };
 }
 
@@ -157,5 +162,6 @@ pub async fn create_and_login_user_with_totp(router: &Router, db: &Database) -> 
         last_name: unverified.last_name.clone(),
         display_name: None,
         totp_secret: Some(totp_secret.clone()),
+        backup_codes: unverified.backup_codes,
     };
 }

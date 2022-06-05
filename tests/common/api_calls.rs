@@ -18,7 +18,7 @@ use bridgekeeper_api::user_models::{
 };
 use bridgekeeper_api::user_models::{CreateUserRequest, LoginWithOtpResponse};
 use bridgekeeper_api::user_totp_models::{
-    ConfirmTotpResponse, StartTotpRegistrationResult, ValidateTotpRequest,
+    StartTotpRegistrationResult, ValidateTotpRequest, ValidateTotpWithBackupCodeRequest,
 };
 
 /// Create the user.
@@ -241,7 +241,7 @@ pub async fn confirm_totp(
     router: &Router,
     token: &str,
     totp_challenge: &str,
-) -> Result<ConfirmTotpResponse, StatusCode> {
+) -> Result<EmptyOkResponse, StatusCode> {
     let validate_totp_request = ValidateTotpRequest {
         totp_challenge: totp_challenge.to_string(),
     };
@@ -250,6 +250,39 @@ pub async fn confirm_totp(
         .oneshot(
             Request::builder()
                 .uri("/user/confirm-totp-registration")
+                .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+                .header(http::header::AUTHORIZATION, format!("Bearer {}", token))
+                .method(http::Method::POST)
+                .body(Body::from(
+                    serde_json::to_string(&json!(validate_totp_request)).unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    if response.status() == StatusCode::OK {
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        return Ok(serde_json::from_slice(&body).unwrap());
+    }
+    Err(response.status())
+}
+
+/// confirm the totp code
+#[allow(dead_code)]
+pub async fn validate_totp_with_backup_code(
+    router: &Router,
+    token: &str,
+    backup_code: &str,
+) -> Result<LoginWithOtpResponse, StatusCode> {
+    let validate_totp_request = ValidateTotpWithBackupCodeRequest {
+        backup_code: backup_code.to_string(),
+    };
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/user/validate-totp-with-backup-code")
                 .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
                 .header(http::header::AUTHORIZATION, format!("Bearer {}", token))
                 .method(http::Method::POST)

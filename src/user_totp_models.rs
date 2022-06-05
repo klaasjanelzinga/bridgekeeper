@@ -15,19 +15,6 @@ impl Display for StartTotpRegistrationResult {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct ConfirmTotpResponse {
-    pub success: bool,
-}
-
-impl Display for ConfirmTotpResponse {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ConfirmTotpResponse")
-            .field("success", &self.success)
-            .finish()
-    }
-}
-
-#[derive(Debug, Deserialize, Serialize)]
 pub struct ValidateTotpRequest {
     pub totp_challenge: String,
 }
@@ -36,6 +23,19 @@ impl Display for ValidateTotpRequest {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ValidateTotpRequest")
             .field("totp_challenge", &self.totp_challenge)
+            .finish()
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ValidateTotpWithBackupCodeRequest {
+    pub backup_code: String,
+}
+
+impl Display for ValidateTotpWithBackupCodeRequest {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ValidateTotpWithBackupCodeRequest")
+            .field("backup_code", &self.backup_code)
             .finish()
     }
 }

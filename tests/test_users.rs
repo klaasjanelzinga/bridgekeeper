@@ -9,9 +9,7 @@ use jsonwebtoken::{decode, Algorithm, Validation};
 use bridgekeeper_api::jwt_models::{JwtClaims, JwtType};
 use bridgekeeper_api::user_models::UpdateUserRequest;
 
-use crate::common::api_calls::{
-    approve_user, change_password, create_user, get_user, login, update_user,
-};
+use crate::common::api_calls::{approve_user, change_password, create_user, delete_user, get_user, login, update_user};
 use crate::common::fixtures::{
     create_and_login_admin_user, create_and_login_user, create_and_login_user_with_totp,
     create_and_login_user_with_totp_not_totp_verified, create_user_request, fake_password,
@@ -41,6 +39,38 @@ async fn test_get_user() {
     assert!(get_user_data.user_id.len() > 1);
 
     ()
+}
+
+
+/// Test delete the user:
+/// - Create a user without an avatar.
+/// - Login (should succeed)
+/// - Delete the user.
+/// - Login (should fail).
+#[tokio::test]
+async fn test_delete_user() {
+    let test_fixtures = common::setup().await;
+    common::empty_users_collection(&test_fixtures.db).await;
+
+    let login_data = create_and_login_user(&test_fixtures.app, &test_fixtures.db).await;
+    let get_user_response = get_user(&test_fixtures.app, &login_data.access_token).await;
+    assert!(get_user_response.is_ok());
+
+    let delete_result = delete_user(&test_fixtures.app, &login_data.access_token).await;
+    assert!( delete_result.is_ok());
+
+    // login (should fail)
+    let login_response = login(
+        &test_fixtures.app,
+        &login_data.email_address,
+        &login_data.password,
+    )
+    .await;
+    assert!(login_response.is_err());
+
+    // get the user
+    let get_user_response = get_user(&test_fixtures.app, &login_data.access_token).await;
+    assert!(get_user_response.is_err());
 }
 
 /// Test the get_user authentication.

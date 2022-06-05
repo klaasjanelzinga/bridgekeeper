@@ -41,29 +41,29 @@ fn verify_input(data: &str, hash: &str) -> Result<bool, ErrorKind> {
 fn verify_password(password: &str) -> Result<(), ErrorKind> {
     if password.len() < 8 {
         return Err(ErrorKind::PasswordInvalid {
-            message: String::from("New password not long enough"),
+            message: String::from("Password not long enough"),
         });
     }
 
     if !password.chars().any(char::is_numeric) {
         return Err(ErrorKind::PasswordInvalid {
-            message: String::from("New password does not contain any digits"),
+            message: String::from("Password does not contain any digits"),
         });
     }
 
     if !password.chars().any(char::is_uppercase) {
         return Err(ErrorKind::PasswordInvalid {
-            message: String::from("New password does not contain any capitals"),
+            message: String::from("Password does not contain any capitals"),
         });
     }
     if !password.chars().any(char::is_lowercase) {
         return Err(ErrorKind::PasswordInvalid {
-            message: String::from("New password does not contain any lower case letters"),
+            message: String::from("Password does not contain any lower case letters"),
         });
     }
     if !password.chars().any(|c| char::is_ascii_punctuation(&c)) {
         return Err(ErrorKind::PasswordInvalid {
-            message: String::from("New password does not contain any special characters"),
+            message: String::from("Password does not contain any special characters"),
         });
     }
 
@@ -383,6 +383,30 @@ pub async fn update(
     update_user(&db_user, db).await?;
 
     Ok(GetUserResponse::from(&db_user))
+}
+
+/// Delete the user from the datastore.
+///
+/// ## Args:
+/// - user: The user to delete.
+/// - db: The mongo db instance.
+///
+/// ## Returns:
+/// Ok if all went well or an Error:
+/// - EntityNotFound: if the user is not found in the datastore.
+pub async fn delete_for_user(
+    user: &User,
+    db: &Database,
+) -> Result<bool, ErrorKind> {
+    let delete_result = user_collection(db)
+        .delete_one(doc! {"user_id": &user.user_id}, None)
+        .await?;
+    if delete_result.deleted_count == 0 {
+        return Err(ErrorKind::EntityNotFound {
+            message: format!("User {} not found", user.user_id),
+        });
+    }
+    Ok(true)
 }
 
 /// Change the password for the user. The user should provide a valid new password and the correct

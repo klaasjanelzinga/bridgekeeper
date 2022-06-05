@@ -23,11 +23,7 @@ use tower_http::trace::TraceLayer;
 use crate::authorization_api::{add_authorization, approve_user, is_authorized, is_jwt_api_valid};
 use crate::avatar_api::{create_or_update_avatar, delete_avatar, get_avatar};
 use crate::config::Config;
-use crate::user_api::{
-    change_password, confirm_totp_registration, create_jwt_api_token, create_user,
-    delete_jwt_api_token, get_user, login, refresh_token, start_totp_registration, update_user,
-    validate_totp,
-};
+use crate::user_api::{change_password, confirm_totp_registration, create_jwt_api_token, create_user, delete_jwt_api_token, delete_user, get_user, login, refresh_token, start_totp_registration, update_user, validate_totp};
 
 pub mod authorization;
 pub mod authorization_api;
@@ -55,7 +51,7 @@ pub fn application_routes(db: &Database, config: &Config<'static>) -> Router {
         .collect::<Vec<HeaderValue>>();
 
     Router::new()
-        .route("/user", get(get_user).post(create_user).put(update_user))
+        .route("/user", get(get_user).post(create_user).put(update_user).delete(delete_user))
         .route("/user/login", post(login))
         .route("/user/change-password", post(change_password))
         .route(

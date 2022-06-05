@@ -3,12 +3,13 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
 use mongodb::Database;
+use crate::avatar::delete_avatar_for_user;
 
 use crate::errors::ErrorKind;
 use crate::jwt::{create_api_jwt_token_for_user, delete_jwt_api_token_for_user};
 use crate::jwt_models::{CreateJwtApiRequest, CreateJwtApiResponse};
 use crate::request_guards::{AccessToken, OneShotToken, RefreshToken};
-use crate::user::{change_password_for_user, create, update};
+use crate::user::{change_password_for_user, create, delete_for_user, update};
 use crate::user_models::{
     ChangePasswordRequest, ChangePasswordResponse, CreateUserRequest, EmptyOkResponse,
     GetUserResponse, LoginRequest, LoginResponse, LoginWithOtpResponse, UpdateUserRequest,
@@ -67,6 +68,23 @@ pub async fn create_user(
                 .into_response()
         }
         Err(error) => error.into_response(),
+    }
+}
+
+/// Delete the user.
+pub async fn delete_user(
+    Extension(db): Extension<Database>,
+    valid_jwt_token: AccessToken,
+) -> Result <Json<EmptyOkResponse>, ErrorKind> {
+    trace!("delete_user(_, {}", valid_jwt_token);
+
+    let result = delete_avatar_for_user(&valid_jwt_token.user, &db).await;
+    match result {
+        Ok(_) | Err(ErrorKind::EntityNotFound{ message: _}) => {
+            delete_for_user(&valid_jwt_token.user, &db).await?;
+            Ok(Json(EmptyOkResponse{success: true}))
+        },
+        Err(error_kind) => Err(error_kind)
     }
 }
 

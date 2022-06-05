@@ -72,7 +72,7 @@ impl Display for Config<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Config")
             .field("mongo_db", &self.mongo_db)
-            .field("mongo_pass", &self.mongo_url)
+            .field("mongo_pass", &self.masked_mongo_url)
             .field("environment", &self.environment)
             .field("mongo_url", &self.masked_mongo_url)
             .field("bind_to", &self.bind_to)

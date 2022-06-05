@@ -161,6 +161,28 @@ pub async fn get_user(router: &Router, token: &str) -> Result<GetUserResponse, S
     Err(response.status())
 }
 
+/// Delete the user
+#[allow(dead_code)]
+pub async fn delete_user(router: &Router, token: &str) -> Result<EmptyOkResponse, StatusCode> {
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/user")
+                .header(http::header::AUTHORIZATION, format!("Bearer {}", token))
+                .method(http::Method::DELETE)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    if response.status() == StatusCode::OK {
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        return Ok(serde_json::from_slice(&body).unwrap());
+    }
+    Err(response.status())
+}
+
 /// Get user by the user_id.
 #[allow(dead_code)]
 pub async fn refresh_token(

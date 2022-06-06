@@ -149,6 +149,25 @@ pub async fn validate_totp_for_user(
     })
 }
 
+/// Delete the totp settings for a user.
+///
+/// ## Args:
+/// - user: The user to remove the totp for.
+/// - db: Valid db mongo instance.
+///
+/// ## Returns:
+/// Ok or an error from updating the user.
+pub async fn delete_totp_for_user(user: &User, db: &Database) -> Result<bool, ErrorKind> {
+    let mut db_user = user::get_by_id(&user.user_id, db).await?;
+    db_user.otp_hash = None;
+    db_user.otp_backup_codes = Vec::new();
+    db_user.pending_otp_hash = None;
+    db_user.pending_backup_codes = Vec::new();
+    user::update_user(&db_user, db).await?;
+
+    return Ok(true);
+}
+
 /// Validates a totp challenge by using a backup code.
 ///
 /// ## Args:

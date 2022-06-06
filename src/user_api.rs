@@ -15,8 +15,8 @@ use crate::user_models::{
     GetUserResponse, LoginRequest, LoginResponse, LoginWithOtpResponse, UpdateUserRequest,
 };
 use crate::user_totp::{
-    confirm_totp_code_for_user, start_totp_registration_for_user, validate_totp_for_user,
-    validate_totp_with_backup_code_for_user,
+    confirm_totp_code_for_user, delete_totp_for_user, start_totp_registration_for_user,
+    validate_totp_for_user, validate_totp_with_backup_code_for_user,
 };
 use crate::user_totp_models::{
     StartTotpRegistrationResult, ValidateTotpRequest, ValidateTotpWithBackupCodeRequest,
@@ -180,6 +180,20 @@ pub async fn validate_totp(
     let result =
         validate_totp_for_user(&jwt_token.user, &config, &validate_totp_request, &db).await?;
     Ok(Json(result))
+}
+
+/// Delete the totp settings.
+///
+/// Authorization: AccessToken
+///
+/// Resources: Database, Config.
+pub async fn delete_totp(
+    jwt_token: AccessToken,
+    Extension(db): Extension<Database>,
+) -> Result<Json<EmptyOkResponse>, ErrorKind> {
+    trace!("delete_totp({}, _)", jwt_token);
+    delete_totp_for_user(&jwt_token.user, &db).await?;
+    Ok(Json(EmptyOkResponse { success: true }))
 }
 
 /// Validate a totp challenge with a backup code.

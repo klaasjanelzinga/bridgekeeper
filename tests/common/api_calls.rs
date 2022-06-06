@@ -595,3 +595,27 @@ pub async fn delete_jwt_api_token(
     }
     Err(response.status())
 }
+
+/// Delete a totp settings for the user.
+#[allow(dead_code)]
+pub async fn delete_totp(router: &Router, token: &str) -> Result<EmptyOkResponse, StatusCode> {
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!("/user/totp"))
+                .header(http::header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+                .header(http::header::AUTHORIZATION, format!("Bearer {}", token))
+                .method(http::Method::DELETE)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    if response.status() == StatusCode::OK {
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        return Ok(serde_json::from_slice(&body).unwrap());
+    }
+    Err(response.status())
+}

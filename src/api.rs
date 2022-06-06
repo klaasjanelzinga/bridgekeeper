@@ -25,8 +25,8 @@ use crate::avatar_api::{create_or_update_avatar, delete_avatar, get_avatar};
 use crate::config::Config;
 use crate::user_api::{
     change_password, confirm_totp_registration, create_jwt_api_token, create_user,
-    delete_jwt_api_token, delete_user, get_user, login, refresh_token, start_totp_registration,
-    update_user, validate_totp, validate_totp_with_backup_code,
+    delete_jwt_api_token, delete_totp, delete_user, get_user, login, refresh_token,
+    start_totp_registration, update_user, validate_totp, validate_totp_with_backup_code,
 };
 
 pub mod authorization;
@@ -79,6 +79,7 @@ pub fn application_routes(db: &Database, config: &Config<'static>) -> Router {
             post(confirm_totp_registration),
         )
         .route("/user/validate-totp", post(validate_totp))
+        .route("/user/totp", delete(delete_totp))
         .route(
             "/user/validate-totp-with-backup-code",
             post(validate_totp_with_backup_code),

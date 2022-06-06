@@ -7,7 +7,7 @@ use jsonwebtoken::{decode, Algorithm, Validation};
 use bridgekeeper_api::jwt_models::{JwtClaims, JwtType};
 
 use crate::common::api_calls::{
-    confirm_totp, get_avatar, get_user, login, start_totp, validate_totp,
+    confirm_totp, delete_totp, get_avatar, get_user, login, start_totp, validate_totp,
     validate_totp_with_backup_code,
 };
 use crate::common::fixtures::{
@@ -234,4 +234,48 @@ async fn test_totp_flow_with_backup_codes() {
         backup_totp_response.err().unwrap(),
         StatusCode::UNAUTHORIZED
     );
+}
+
+/// Test the deleting of the totp settings for a user.
+/// - Create the totp user.
+#[tokio::test]
+async fn test_delete_totp() {
+    let test_fixtures = common::setup().await;
+    common::empty_users_collection(&test_fixtures.db).await;
+    let login_data = create_and_login_user_with_totp(&test_fixtures.app, &test_fixtures.db).await;
+
+    // login should require a otp challenge
+    let login_result = login(
+        &test_fixtures.app,
+        &login_data.for_application,
+        &login_data.email_address,
+        &login_data.password,
+    )
+    .await
+    .unwrap();
+    assert!(login_result.needs_otp);
+    let validate_totp_result = validate_totp(
+        &test_fixtures.app,
+        &login_result.token,
+        &calculate_totp_value(&login_data.totp_secret.unwrap()),
+    )
+    .await
+    .unwrap();
+
+    // delete the otp for the user
+    let delete_result = delete_totp(&test_fixtures.app, &validate_totp_result.access_token)
+        .await
+        .unwrap();
+    assert!(delete_result.success);
+
+    // login should no longer require otp challenge
+    let login_result_after_delete = login(
+        &test_fixtures.app,
+        &login_data.for_application,
+        &login_data.email_address,
+        &login_data.password,
+    )
+    .await
+    .unwrap();
+    assert!(!login_result_after_delete.needs_otp);
 }

@@ -165,7 +165,7 @@ pub async fn delete_totp_for_user(user: &User, db: &Database) -> Result<bool, Er
     db_user.pending_backup_codes = Vec::new();
     user::update_user(&db_user, db).await?;
 
-    return Ok(true);
+    Ok(true)
 }
 
 /// Validates a totp challenge by using a backup code.

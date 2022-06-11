@@ -4,10 +4,7 @@ use hyper::Body;
 use serde_json::json;
 use tower::ServiceExt;
 
-use bridgekeeper_api::authorization_models::{
-    AddAuthorizationRequest, ApproveUserRequest, Authorization, IsAuthorizedRequest,
-    IsAuthorizedResponse, IsJwtApiTokenValidRequest,
-};
+use bridgekeeper_api::authorization_models::{AddAuthorizationRequest, ApproveUserRequest, Authorization, IsAuthorizedRequest, IsAuthorizedResponse, IsJwtApiTokenValidRequest, IsJwtValidResponse};
 use bridgekeeper_api::avatar_models::{
     GetAvatarResponse, UpdateAvatarRequest, UpdateAvatarResponse,
 };
@@ -542,7 +539,7 @@ pub async fn create_jwt_api(
 pub async fn is_jwt_api_valid(
     router: &Router,
     jwt_api_token: &str,
-) -> Result<IsAuthorizedResponse, StatusCode> {
+) -> Result<IsJwtValidResponse, StatusCode> {
     let response = router
         .clone()
         .oneshot(

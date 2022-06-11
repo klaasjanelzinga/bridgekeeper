@@ -91,6 +91,12 @@ async fn test_authorization() {
         let is_authorized_response =
             is_authorized(&test_fixtures.app, &regular_user.access_token, &valid).await;
         assert!(is_authorized_response.is_ok());
+        let response = is_authorized_response.unwrap();
+        assert_eq!(response.user_id, regular_user.user_id);
+        assert_eq!(response.email_address, regular_user.email_address);
+        assert_eq!(response.first_name, regular_user.first_name);
+        assert_eq!(response.last_name, regular_user.last_name);
+        assert_eq!(response.display_name, regular_user.display_name);
     }
 
     let invalids = [

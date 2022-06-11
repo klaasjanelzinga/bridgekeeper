@@ -65,12 +65,30 @@ impl Display for IsJwtApiTokenValidRequest {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct IsAuthorizedResponse {
     pub is_authorized: bool,
+    pub user_id: String,
+    pub email_address: String,
+    pub first_name: String,
+    pub last_name: String,
+    pub display_name: Option<String>,
 }
 
 impl Display for IsAuthorizedResponse {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("IsAuthorizedResponse")
             .field("is_authorized", &self.is_authorized)
+            .finish()
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct IsJwtValidResponse {
+    pub is_ok: bool,
+}
+
+impl Display for IsJwtValidResponse {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("IsJwtValidResponse")
+            .field("is_ok", &self.is_ok)
             .finish()
     }
 }

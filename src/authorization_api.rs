@@ -6,10 +6,7 @@ use axum::Json;
 use mongodb::Database;
 
 use crate::authorization::create;
-use crate::authorization_models::{
-    AddAuthorizationRequest, ApproveUserRequest, Authorization, IsAuthorizedRequest,
-    IsAuthorizedResponse, IsJwtApiTokenValidRequest,
-};
+use crate::authorization_models::{AddAuthorizationRequest, ApproveUserRequest, Authorization, IsAuthorizedRequest, IsAuthorizedResponse, IsJwtApiTokenValidRequest, IsJwtValidResponse};
 use crate::errors::ErrorKind;
 use crate::request_guards::{AccessToken, AuthorizedUser};
 use crate::Config;
@@ -70,6 +67,11 @@ pub async fn is_authorized(
 
     Ok(Json(IsAuthorizedResponse {
         is_authorized: true,
+        user_id: valid_jwt_token.user.user_id,
+        email_address: valid_jwt_token.user.email_address,
+        last_name: valid_jwt_token.user.last_name,
+        first_name: valid_jwt_token.user.first_name,
+        display_name: valid_jwt_token.user.display_name,
     }))
 }
 
@@ -82,11 +84,11 @@ pub async fn is_jwt_api_valid(
     Json(is_jwt_api_token_valid_request): Json<IsJwtApiTokenValidRequest>,
     Extension(db): Extension<Database>,
     Extension(config): Extension<Config<'_>>,
-) -> Result<Json<IsAuthorizedResponse>, ErrorKind> {
+) -> Result<Json<IsJwtValidResponse>, ErrorKind> {
     trace!("is_jwt_api_valid()");
     is_jwt_api_token_valid(&is_jwt_api_token_valid_request.token, &config, &db).await?;
 
-    Ok(Json(IsAuthorizedResponse {
-        is_authorized: true,
+    Ok(Json(IsJwtValidResponse {
+        is_ok: true,
     }))
 }

@@ -4,7 +4,10 @@ use hyper::Body;
 use serde_json::json;
 use tower::ServiceExt;
 
-use bridgekeeper_api::authorization_models::{AddAuthorizationRequest, ApproveUserRequest, Authorization, IsAuthorizedRequest, IsAuthorizedResponse, IsJwtApiTokenValidRequest, IsJwtValidResponse};
+use bridgekeeper_api::authorization_models::{
+    AddAuthorizationRequest, ApproveUserRequest, Authorization, IsAuthorizedRequest,
+    IsAuthorizedResponse, IsJwtApiTokenValidRequest, IsJwtValidResponse,
+};
 use bridgekeeper_api::avatar_models::{
     GetAvatarResponse, UpdateAvatarRequest, UpdateAvatarResponse,
 };

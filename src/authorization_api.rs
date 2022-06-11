@@ -6,7 +6,10 @@ use axum::Json;
 use mongodb::Database;
 
 use crate::authorization::create;
-use crate::authorization_models::{AddAuthorizationRequest, ApproveUserRequest, Authorization, IsAuthorizedRequest, IsAuthorizedResponse, IsJwtApiTokenValidRequest, IsJwtValidResponse};
+use crate::authorization_models::{
+    AddAuthorizationRequest, ApproveUserRequest, Authorization, IsAuthorizedRequest,
+    IsAuthorizedResponse, IsJwtApiTokenValidRequest, IsJwtValidResponse,
+};
 use crate::errors::ErrorKind;
 use crate::request_guards::{AccessToken, AuthorizedUser};
 use crate::Config;
@@ -88,7 +91,5 @@ pub async fn is_jwt_api_valid(
     trace!("is_jwt_api_valid()");
     is_jwt_api_token_valid(&is_jwt_api_token_valid_request.token, &config, &db).await?;
 
-    Ok(Json(IsJwtValidResponse {
-        is_ok: true,
-    }))
+    Ok(Json(IsJwtValidResponse { is_ok: true }))
 }

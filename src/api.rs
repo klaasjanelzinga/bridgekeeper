@@ -16,7 +16,7 @@ use mongodb::Client;
 use mongodb::Database;
 use tokio::signal;
 use tower::ServiceBuilder;
-use tower_http::cors::{CorsLayer, Origin};
+use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::sensitive_headers::SetSensitiveRequestHeadersLayer;
 use tower_http::trace::TraceLayer;
 
@@ -47,7 +47,7 @@ pub mod user_totp;
 pub mod user_totp_models;
 mod util;
 
-pub fn application_routes(db: &Database, config: &Config<'static>) -> Router {
+pub fn application_routes(db: &Database, config: &Config) -> Router {
     let user_endpoint = config
         .allow_origin
         .split(',')
@@ -108,7 +108,7 @@ pub fn application_routes(db: &Database, config: &Config<'static>) -> Router {
         .layer(
             CorsLayer::new()
                 .allow_headers(vec![CONTENT_TYPE, AUTHORIZATION])
-                .allow_origin(Origin::list(user_endpoint)) /* (Origin::list(user_endpoint)) */
+                .allow_origin(AllowOrigin::list(user_endpoint))
                 .allow_methods(vec![
                     Method::GET,
                     Method::DELETE,
@@ -119,7 +119,7 @@ pub fn application_routes(db: &Database, config: &Config<'static>) -> Router {
         )
 }
 
-pub async fn launch(db: &Database, config: &Config<'static>) {
+pub async fn launch(db: &Database, config: &Config) {
     debug!("listening on {}", config.bind_to);
     axum::Server::bind(&config.bind_to)
         .serve(application_routes(db, config).into_make_service())
@@ -128,7 +128,7 @@ pub async fn launch(db: &Database, config: &Config<'static>) {
         .unwrap();
 }
 
-pub async fn create_mongo_connection(config: &Config<'_>) -> Result<Database, Box<dyn Error>> {
+pub async fn create_mongo_connection(config: &Config) -> Result<Database, Box<dyn Error>> {
     trace!("Connecting mongodb, config {}", config);
     let client_options = ClientOptions::parse(&config.mongo_url).await?;
     let client = Client::with_options(client_options)?;

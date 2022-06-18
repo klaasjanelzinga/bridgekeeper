@@ -130,7 +130,7 @@ pub async fn confirm_totp_code_for_user(
 /// A new token set for the user if the challenge succeeds, or an error otherwise.
 pub async fn validate_totp_for_user(
     user: &User,
-    config: &Config<'_>,
+    config: &Config,
     request: &ValidateTotpRequest,
     db: &Database,
 ) -> Result<LoginWithOtpResponse, ErrorKind> {
@@ -180,7 +180,7 @@ pub async fn delete_totp_for_user(user: &User, db: &Database) -> Result<bool, Er
 /// A new token set for the user if the challenge succeeds, or an error otherwise.
 pub async fn validate_totp_with_backup_code_for_user(
     user: &User,
-    config: &Config<'_>,
+    config: &Config,
     request: &ValidateTotpWithBackupCodeRequest,
     db: &Database,
 ) -> Result<LoginWithOtpResponse, ErrorKind> {

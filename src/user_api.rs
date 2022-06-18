@@ -97,7 +97,7 @@ pub async fn delete_user(
 pub async fn login(
     Json(login_request): Json<LoginRequest>,
     Extension(db): Extension<Database>,
-    Extension(config): Extension<Config<'_>>,
+    Extension(config): Extension<Config>,
 ) -> Result<Json<LoginResponse>, ErrorKind> {
     trace!("login_request({}, _)", login_request.email_address);
     let response = crate::user::login(&login_request, &config.clone(), &db).await?;
@@ -111,7 +111,7 @@ pub async fn login(
 /// Resources: Database, Config.
 pub async fn refresh_token(
     Extension(db): Extension<Database>,
-    Extension(config): Extension<Config<'_>>,
+    Extension(config): Extension<Config>,
     valid_jwt_token: RefreshToken,
 ) -> Result<Json<LoginWithOtpResponse>, ErrorKind> {
     trace!("refresh_token()");
@@ -171,7 +171,7 @@ pub async fn confirm_totp_registration(
 ///
 /// Resources: Database, Config.
 pub async fn validate_totp(
-    Extension(config): Extension<Config<'_>>,
+    Extension(config): Extension<Config>,
     validate_totp_request: Json<ValidateTotpRequest>,
     jwt_token: OneShotToken,
     Extension(db): Extension<Database>,
@@ -202,7 +202,7 @@ pub async fn delete_totp(
 ///
 /// Resources: Database, Config.
 pub async fn validate_totp_with_backup_code(
-    Extension(config): Extension<Config<'_>>,
+    Extension(config): Extension<Config>,
     validate_totp_request: Json<ValidateTotpWithBackupCodeRequest>,
     jwt_token: OneShotToken,
     Extension(db): Extension<Database>,
@@ -224,7 +224,7 @@ pub async fn validate_totp_with_backup_code(
 ///
 /// Resources: Database, Config.
 pub async fn create_jwt_api_token(
-    Extension(config): Extension<Config<'_>>,
+    Extension(config): Extension<Config>,
     Json(create_jwt_api_token_request): Json<CreateJwtApiRequest>,
     jwt_token: AccessToken,
     Extension(db): Extension<Database>,

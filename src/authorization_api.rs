@@ -86,7 +86,7 @@ pub async fn is_authorized(
 pub async fn is_jwt_api_valid(
     Json(is_jwt_api_token_valid_request): Json<IsJwtApiTokenValidRequest>,
     Extension(db): Extension<Database>,
-    Extension(config): Extension<Config<'_>>,
+    Extension(config): Extension<Config>,
 ) -> Result<Json<IsJwtValidResponse>, ErrorKind> {
     trace!("is_jwt_api_valid()");
     is_jwt_api_token_valid(&is_jwt_api_token_valid_request.token, &config, &db).await?;

@@ -4,12 +4,12 @@ use std::fmt::{Display, Formatter};
 use std::net::SocketAddr;
 
 #[derive(Clone)]
-pub struct Config<'a> {
+pub struct Config {
     pub mongo_db: String,
     pub mongo_url: String,
     pub masked_mongo_url: String,
     pub environment: String,
-    pub decoding_key: DecodingKey<'a>,
+    pub decoding_key: DecodingKey,
     pub encoding_key: EncodingKey,
     pub application_name: String,
     pub bind_to: SocketAddr,
@@ -28,7 +28,7 @@ fn os_var_as_string(var: &str) -> String {
         .unwrap()
 }
 
-impl Config<'_> {
+impl Config {
     pub fn from_environment() -> Self {
         let mongo_db = os_var_as_string("MONGO_DB");
         let mongo_host = os_var_as_string("MONGO_HOST");
@@ -68,7 +68,7 @@ impl Config<'_> {
     }
 }
 
-impl Display for Config<'_> {
+impl Display for Config {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Config")
             .field("mongo_db", &self.mongo_db)

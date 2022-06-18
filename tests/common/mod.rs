@@ -14,9 +14,9 @@ use bridgekeeper_api::user_models::User;
 pub mod api_calls;
 pub mod fixtures;
 
-pub struct TestFixtures<'a> {
+pub struct TestFixtures {
     pub db: Database,
-    pub config: Config<'a>,
+    pub config: Config,
     pub app: Router,
 }
 
@@ -28,7 +28,7 @@ fn set_env_var_if_not_set(env_var: &str, default_value: &str) {
     }
 }
 
-pub async fn setup<'a>() -> TestFixtures<'a> {
+pub async fn setup() -> TestFixtures {
     LOG_INIT.call_once(|| {
         if env::var_os("RUST_LOG").is_none() {
             pretty_env_logger::formatted_timed_builder()

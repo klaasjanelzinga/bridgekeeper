@@ -108,7 +108,7 @@ pub async fn is_user_authorized_for(
 /// other wise an ErrorKind is returned.
 pub async fn is_jwt_api_token_valid(
     token: &str,
-    config: &Config<'_>,
+    config: &Config,
     db: &Database,
 ) -> Result<bool, ErrorKind> {
     trace!("is_jwt_api_token_valid(_, _, _)");

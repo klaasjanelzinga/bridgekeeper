@@ -139,7 +139,7 @@ async fn get_by_email_and_application(
 /// - EntityNotFound - if the email address is not known.
 pub async fn login(
     login_request: &LoginRequest,
-    config: &Config<'_>,
+    config: &Config,
     db: &Database,
 ) -> Result<LoginResponse, ErrorKind> {
     trace!("login({}, _)", login_request);
@@ -296,7 +296,7 @@ async fn clear_session_for_user(user: &User, db: &Database) -> Result<bool, Erro
 /// - db: The mongo db instance.
 pub async fn refresh_token_for_user(
     user: &User,
-    config: &Config<'_>,
+    config: &Config,
     db: &Database,
 ) -> Result<LoginWithOtpResponse, ErrorKind> {
     let refresh_token = create_refresh_token(user, &config.encoding_key)?;

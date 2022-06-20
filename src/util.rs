@@ -12,5 +12,5 @@ pub fn random_string(number_of_chars: usize) -> String {
 
 /// Creates a new abstract id for entities.
 pub fn create_id() -> String {
-    Uuid::new_v4().to_hyphenated().to_string()
+    Uuid::new_v4().as_hyphenated().to_string()
 }

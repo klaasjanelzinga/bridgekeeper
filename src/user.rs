@@ -1,4 +1,5 @@
-use crate::Config;
+use crate::authorization_models::AddAuthorizationRequest;
+use crate::{authorization, Config};
 use mongodb::bson::doc;
 use mongodb::{Collection, Database};
 
@@ -369,11 +370,22 @@ pub async fn create(
     };
 
     let insert_result = collection.insert_one(&new_user, None).await?;
-
     trace!(
         "New user inserted with mongo id {}",
         insert_result.inserted_id
     );
+
+    authorization::create(
+        &AddAuthorizationRequest {
+            application: create_user_request.for_application.clone(),
+            method_regex: ".*".to_string(),
+            uri_regex: ".*".to_string(),
+            for_user_id: new_user.user_id.clone(),
+        },
+        db,
+    )
+    .await?;
+
     Ok(new_user)
 }
 

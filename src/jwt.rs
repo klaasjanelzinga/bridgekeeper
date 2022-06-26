@@ -25,7 +25,13 @@ pub fn create_token_for_user(
     let expiration_timestamp: u64 = match token_type {
         JwtType::OneShotToken => secs_since_epoch + 5 * 60,
         JwtType::RefreshToken => secs_since_epoch + 4 * 24 * 60 * 60,
-        JwtType::AccessToken => secs_since_epoch + 60,
+        JwtType::AccessToken => {
+            if user.otp_hash.is_some() {
+                secs_since_epoch + 5 * 60
+            } else {
+                secs_since_epoch + 7 * 24 * 60 * 60
+            }
+        }
     };
 
     let token_id = create_id();

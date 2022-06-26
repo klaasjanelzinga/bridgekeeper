@@ -224,13 +224,10 @@ async fn test_replay_refresh_token() {
         StatusCode::UNAUTHORIZED
     );
 
-    assert_eq!(
-        get_user(&test_fixtures.app, &totp_user.access_token)
-            .await
-            .err()
-            .unwrap(),
-        StatusCode::UNAUTHORIZED
-    )
+    // Not possible to revoke an access token.
+    assert!(get_user(&test_fixtures.app, &totp_user.access_token)
+        .await
+        .is_ok())
 }
 
 /// Test the replay of a one shot token.

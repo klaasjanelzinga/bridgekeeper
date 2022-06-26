@@ -168,9 +168,11 @@ pub async fn login(
                 create_access_token(&user, &config.encoding_key)
             }?;
 
-            let mut db_user = get_by_id(&user.user_id, db).await?;
-            db_user.issued_token_ids.push(token.token_id);
-            update_user(&db_user, db).await?;
+            if otp_is_configured {
+                let mut db_user = get_by_id(&user.user_id, db).await?;
+                db_user.issued_token_ids.push(token.token_id);
+                update_user(&db_user, db).await?;
+            }
 
             Ok(LoginResponse {
                 needs_otp: otp_is_configured,
@@ -198,10 +200,7 @@ pub async fn validate_jwt_claim_for_access_token(
 ) -> Result<User, ErrorKind> {
     let user = get_by_id(&jwt_claims.user_id, db).await?;
     match jwt_claims.token_type {
-        JwtType::AccessToken => {
-            check_user_token_id(&user, jwt_claims, db).await?;
-            Ok(user)
-        }
+        JwtType::AccessToken => Ok(user),
         _ => {
             clear_session_for_user(&user, db).await?;
             Err(TokenTypeInvalid)
@@ -219,9 +218,19 @@ pub async fn validate_jwt_claim_for_one_shot_token(
     db: &Database,
 ) -> Result<User, ErrorKind> {
     let user = get_by_id(&jwt_claims.user_id, db).await?;
+
     match jwt_claims.token_type {
         JwtType::OneShotToken => {
             check_user_token_id(&user, jwt_claims, db).await?;
+            let mut db_user = user.clone();
+            let index = user
+                .issued_token_ids
+                .iter()
+                .position(|x| *x == jwt_claims.token_id);
+            if index.is_some() {
+                db_user.issued_token_ids.swap_remove(index.unwrap());
+            }
+            update_user(&db_user, db).await?;
             Ok(user)
         }
         _ => {
@@ -305,7 +314,6 @@ pub async fn refresh_token_for_user(
     }
 
     db_user.issued_token_ids.push(refresh_token.token_id);
-    db_user.issued_token_ids.push(access_token.token_id);
     update_user(&db_user, db).await?;
     Ok(LoginWithOtpResponse {
         access_token: access_token.token,

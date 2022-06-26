@@ -33,7 +33,6 @@ mime = { version = "^0.3.0" }
 jsonwebtoken = "^8.1.0"
 rust-argon2 = "^1.0.0"
 rand = "^0.8.0"
-chrono = "0.4"
 
 base64 = "^0.13.0"
 totp-lite = "^2.0.0"

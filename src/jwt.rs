@@ -1,6 +1,6 @@
-use chrono::Utc;
 use jsonwebtoken::{encode, EncodingKey, Header};
 use mongodb::Database;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::errors::ErrorKind;
 use crate::jwt_models::{JwtApiClaims, JwtClaims, JwtCreationResponse, JwtType};
@@ -8,21 +8,26 @@ use crate::user::update_user;
 use crate::user_models::{User, UserJwtApiToken};
 use crate::util::{create_id, random_string};
 
+fn secs_since_epoch() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("Time went backwards")
+        .as_secs()
+}
+
 /// Create a specific token for a user. Depending on the type a expiration time will be set.
 pub fn create_token_for_user(
     token_type: JwtType,
     user: &User,
     encoding_key: &EncodingKey,
 ) -> Result<JwtCreationResponse, ErrorKind> {
-    let expiration_timestamp = match token_type {
-        JwtType::OneShotToken => chrono::Duration::minutes(5),
-        JwtType::RefreshToken => chrono::Duration::days(4),
-        JwtType::AccessToken => chrono::Duration::hours(3),
+    let secs_since_epoch = secs_since_epoch();
+    let expiration_timestamp: u64 = match token_type {
+        JwtType::OneShotToken => secs_since_epoch + 5 * 60,
+        JwtType::RefreshToken => secs_since_epoch + 4 * 24 * 60 * 60,
+        JwtType::AccessToken => secs_since_epoch + 60,
     };
-    let expiration = Utc::now()
-        .checked_add_signed(expiration_timestamp)
-        .expect("valid timestamp")
-        .timestamp();
+
     let token_id = create_id();
 
     let jwt_claims = JwtClaims {
@@ -30,7 +35,7 @@ pub fn create_token_for_user(
         user_id: user.user_id.clone(),
         token_id: token_id.clone(),
         token_type,
-        exp: expiration as usize,
+        exp: expiration_timestamp as usize,
     };
 
     let token_result = encode(&Header::default(), &jwt_claims, encoding_key)
@@ -106,11 +111,7 @@ pub async fn create_api_jwt_token_for_user(
     db: &Database,
 ) -> Result<String, ErrorKind> {
     trace!("create_api_jwt_token({}, {})", user, public_token_id);
-    let expiration = Utc::now()
-        .checked_add_signed(chrono::Duration::days(360))
-        .expect("valid timestamp")
-        .timestamp();
-
+    let expiration = secs_since_epoch() + 360 * 24 * 60 * 60;
     // create a new UserJwtApp token
     let mut new_collection: Vec<UserJwtApiToken> = user
         .user_jwt_api_token

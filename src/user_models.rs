@@ -37,8 +37,7 @@ pub struct User {
 
     pub is_approved: bool,
 
-    pub refresh_token_id: Option<String>,
-    pub access_token_id: Option<String>,
+    pub issued_token_ids: Vec<String>,
     pub user_jwt_api_token: Vec<UserJwtApiToken>,
 }
 

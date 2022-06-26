@@ -115,8 +115,13 @@ pub async fn refresh_token(
     valid_jwt_token: RefreshToken,
 ) -> Result<Json<LoginWithOtpResponse>, ErrorKind> {
     trace!("refresh_token()");
-    let response =
-        crate::user::refresh_token_for_user(&valid_jwt_token.user, &config.clone(), &db).await?;
+    let response = crate::user::refresh_token_for_user(
+        &valid_jwt_token.jwt_claims.token_id,
+        &valid_jwt_token.user,
+        &config.clone(),
+        &db,
+    )
+    .await?;
     Ok(Json(response))
 }
 

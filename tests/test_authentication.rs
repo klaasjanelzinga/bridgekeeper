@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate log;
 
-use crate::common::api_calls::{get_user, refresh_token, validate_totp};
+use crate::common::api_calls::{get_user, login, refresh_token, validate_totp};
 use axum::http;
 
 use crate::common::fixtures::{
@@ -72,6 +72,41 @@ async fn test_invalid_authentication_header() {
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
     ()
+}
+
+/// Test that a user can have multiple accounts.
+/// - Login user under login-1.
+/// - Login user under login-2.
+/// - Login user under login-3.
+/// All three logins should work.
+#[tokio::test]
+async fn test_multiple_logins() {
+    let test_fixtures = common::setup().await;
+    common::empty_users_collection(&test_fixtures.db).await;
+
+    let login_1 = create_and_login_user(&test_fixtures.app, &test_fixtures.db).await;
+    let login_2 = login(
+        &test_fixtures.app,
+        &login_1.for_application,
+        &login_1.email_address,
+        &login_1.password,
+    )
+    .await
+    .unwrap();
+    let login_3 = login(
+        &test_fixtures.app,
+        &login_1.for_application,
+        &login_1.email_address,
+        &login_1.password,
+    )
+    .await
+    .unwrap();
+
+    get_user(&test_fixtures.app, &login_1.access_token)
+        .await
+        .unwrap();
+    get_user(&test_fixtures.app, &login_2.token).await.unwrap();
+    get_user(&test_fixtures.app, &login_3.token).await.unwrap();
 }
 
 /// Test different tokens with different purposes.

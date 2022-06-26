@@ -169,7 +169,7 @@ pub async fn login(
             }?;
 
             let mut db_user = get_by_id(&user.user_id, db).await?;
-            db_user.access_token_id = Some(token.token_id);
+            db_user.issued_token_ids.push(token.token_id);
             update_user(&db_user, db).await?;
 
             Ok(LoginResponse {
@@ -199,7 +199,7 @@ pub async fn validate_jwt_claim_for_access_token(
     let user = get_by_id(&jwt_claims.user_id, db).await?;
     match jwt_claims.token_type {
         JwtType::AccessToken => {
-            check_user_token_id(&user, user.access_token_id.clone(), jwt_claims, db).await?;
+            check_user_token_id(&user, jwt_claims, db).await?;
             Ok(user)
         }
         _ => {
@@ -221,7 +221,7 @@ pub async fn validate_jwt_claim_for_one_shot_token(
     let user = get_by_id(&jwt_claims.user_id, db).await?;
     match jwt_claims.token_type {
         JwtType::OneShotToken => {
-            check_user_token_id(&user, user.access_token_id.clone(), jwt_claims, db).await?;
+            check_user_token_id(&user, jwt_claims, db).await?;
             Ok(user)
         }
         _ => {
@@ -243,7 +243,7 @@ pub async fn validate_jwt_claim_for_refresh_token(
     let user = get_by_id(&jwt_claims.user_id, db).await?;
     match jwt_claims.token_type {
         JwtType::RefreshToken => {
-            check_user_token_id(&user, user.refresh_token_id.clone(), jwt_claims, db).await?;
+            check_user_token_id(&user, jwt_claims, db).await?;
             Ok(user)
         }
         _ => {
@@ -257,34 +257,24 @@ pub async fn validate_jwt_claim_for_refresh_token(
 /// they do not match, the session of the user is cleared and an ErrorKind is returned.
 async fn check_user_token_id(
     user: &User,
-    user_token_id: Option<String>,
     jwt_claims: &JwtClaims,
     db: &Database,
 ) -> Result<bool, ErrorKind> {
     if !user.is_approved {
         return Err(ErrorKind::UserNotApproved);
     }
-    match user_token_id {
-        Some(token_id) => {
-            if token_id == jwt_claims.token_id {
-                Ok(true)
-            } else {
-                clear_session_for_user(user, db).await?;
-                Err(ErrorKind::TokenUsedInReplay)
-            }
-        }
-        _ => {
-            clear_session_for_user(user, db).await?;
-            Err(ErrorKind::TokenNotFound)
-        }
+    if user.issued_token_ids.contains(&jwt_claims.token_id) {
+        Ok(true)
+    } else {
+        clear_session_for_user(user, db).await?;
+        Err(ErrorKind::TokenUsedInReplay)
     }
 }
 
 /// Clears the registered tokens for the user.
 async fn clear_session_for_user(user: &User, db: &Database) -> Result<bool, ErrorKind> {
     let mut db_user = user.clone();
-    db_user.refresh_token_id = None;
-    db_user.access_token_id = None;
+    db_user.issued_token_ids = vec![];
     update_user(&db_user, db).await?;
     Ok(true)
 }
@@ -296,6 +286,7 @@ async fn clear_session_for_user(user: &User, db: &Database) -> Result<bool, Erro
 /// - config: The configuration of the application.
 /// - db: The mongo db instance.
 pub async fn refresh_token_for_user(
+    old_token_id: &str,
     user: &User,
     config: &Config,
     db: &Database,
@@ -304,8 +295,17 @@ pub async fn refresh_token_for_user(
     let access_token = create_access_token(user, &config.encoding_key)?;
 
     let mut db_user = user.clone();
-    db_user.refresh_token_id = Some(refresh_token.token_id);
-    db_user.access_token_id = Some(access_token.token_id);
+
+    let index = user
+        .issued_token_ids
+        .iter()
+        .position(|x| *x == old_token_id);
+    if index.is_some() {
+        db_user.issued_token_ids.swap_remove(index.unwrap());
+    }
+
+    db_user.issued_token_ids.push(refresh_token.token_id);
+    db_user.issued_token_ids.push(access_token.token_id);
     update_user(&db_user, db).await?;
     Ok(LoginWithOtpResponse {
         access_token: access_token.token,
@@ -363,8 +363,7 @@ pub async fn create(
         otp_backup_codes: vec![],
         pending_otp_hash: None,
         pending_backup_codes: vec![],
-        refresh_token_id: None,
-        access_token_id: None,
+        issued_token_ids: vec![],
         is_approved: false,
         user_jwt_api_token: vec![],
     };
